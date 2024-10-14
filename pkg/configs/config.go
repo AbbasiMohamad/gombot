@@ -1,17 +1,25 @@
 package configs
 
 import (
-	"gopkg.in/yaml.v3"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
-const ConfigPath = "./configs/configs.yml"
+const ConfigPath = "./configs/config.yml"
 
 type Config struct {
-	Version    string   `yaml:"version"`
-	Requesters []string `yaml:"requesters"`
-	Approvers  []string `yaml:"approvers"`
-	Token      string   `yaml:"token"`
+	Version       string         `yaml:"version"`
+	Requesters    []string       `yaml:"requesters"`
+	Approvers     []string       `yaml:"approvers"`
+	Token         string         `yaml:"token"`
+	Microservices []Microservice `yaml:"microservices"`
+}
+
+type Microservice struct {
+	Name      string `yaml:"name"`
+	GitlabUrl string `yaml:"gitlab_url"`
+	Branch    string `yaml:"branch"`
 }
 
 func LoadConfig(path string) (*Config, error) {

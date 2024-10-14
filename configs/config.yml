@@ -6,4 +6,15 @@ approvers:
   - abbasi_mohamad
 rollback_permission:
   - alaki
-token: ""
+# need to restart after change
+token: "480176318:kAUadsCw1DlURmwGVni4SytzL38Zp58TrNUC6XGx"
+microservices:
+  - name: "import"
+    gitlab_url: "https://code.irica.ir"
+    branch: "rc"
+  - name: "financial"
+    gitlab_url: "https://code.irica.ir"
+    branch: "rc"
+  - name: "gate"
+    gitlab_url: "https://code.irica.ir"
+    branch: "rc"

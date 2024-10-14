@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"context"
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
-	"github.com/google/uuid"
 	"gombot/pkg/configs"
 	model "gombot/pkg/models"
 	"log"
 	"strings"
+
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+	"github.com/google/uuid"
 )
 
 func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -16,7 +17,8 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	var message string
 	// check username existance
 	if update.Message.From.Username == "" {
-		sendMessage(b, ctx, update.Message.Chat.ID, "برای استفاده از بات لازم است نام کاربری داشته باشید")
+		message = "برای استفاده از بات لازم است نام کاربری داشته باشید"
+		SendMessage(b, ctx, update.Message.Chat.ID, message)
 		return
 	}
 	// check access to do update
@@ -25,38 +27,49 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		log.Printf("user try to update command failed, because of lack of permission. (user_id:%d|user_fullname:%s)",
 			update.Message.From.ID, update.Message.From.FirstName+update.Message.From.LastName)
 		message = "شما (" + update.Message.From.FirstName + update.Message.From.LastName + ") دسترسی دستور آپدیت را ندارید"
-		sendMessage(b, ctx, update.Message.Chat.ID, message)
+		SendMessage(b, ctx, update.Message.Chat.ID, message)
 		return
 	}
 
 	// parse command
 	applicationNames := parseCommand(update.Message.Text)
-
-	message = "شما اپلیکیشن های زیر را درخواست دادید: \n"
-	for _, word := range applicationNames {
-		message += word + "\n"
+	if len(applicationNames) == 0 {
+		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
+		SendMessage(b, ctx, update.Message.Chat.ID, message)
+		return
 	}
-
-	// print command to users
-	sendMessage(b, ctx, update.Message.Chat.ID, message)
-
+	// validate application existance
 	var applications []model.Application
-
+	config, _ := configs.LoadConfig(configs.ConfigPath)
 	for _, application := range applicationNames {
-		app := model.Application{
-			Name:   application,
-			Status: model.Declared,
+		if validateMicroserviceIsExist(application, config.Microservices) {
+			app := model.Application{
+				Name:   application,
+				Status: model.Declared,
+			}
+			applications = append(applications, app)
 		}
-		applications = append(applications, app)
 	}
 
+	var approvers []model.Approver
+	for _, approver := range config.Approvers {
+		approvers = append(approvers, model.Approver{
+			Username: approver,
+		})
+	}
+	requester := model.Requester{
+		Username: update.Message.From.Username,
+	}
 	job := model.Job{
 		JobId:        uuid.New(),
 		ChatId:       update.Message.Chat.ID,
 		MessageId:    update.Message.ID,
 		Applications: applications,
+		Status:       model.Requested,
+		Approvers:    approvers,
+		Requester:    requester,
 	}
-
+	// need to be approve
 	model.PushToQueue(&job)
 
 }
@@ -64,7 +77,7 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 func StatusHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	for _, applications := range model.Queue {
 		for _, app := range applications.Applications {
-			sendMessage(b, ctx, update.Message.Chat.ID, app.Name)
+			SendMessage(b, ctx, update.Message.Chat.ID, app.Name)
 		}
 	}
 }
@@ -84,13 +97,36 @@ func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 }
 
-func sendMessage(b *bot.Bot, ctx context.Context, chatId int64, message string) {
+func SendMessage(b *bot.Bot, ctx context.Context, chatId int64, message string) {
 	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: chatId,
 		Text:   message,
 	})
 	if err != nil {
 		log.Println("There is a unknown error, Gombot can not send message!")
+		// TODO: maybe is better to return error to caller
+	}
+}
+
+func SendMessageWithInlineKeyboardMarkup(b *bot.Bot, ctx context.Context, chatId int64, message string) {
+	kb := &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{
+				{Text: "Button 1", CallbackData: "button_1"},
+				{Text: "Button 2", CallbackData: "button_2"},
+			}, {
+				{Text: "Button 3", CallbackData: "button_3"},
+			},
+		},
+	}
+	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatId,
+		Text:        message,
+		ReplyMarkup: kb,
+	})
+	if err != nil {
+		log.Println("There is a unknown error, Gombot can not send message!")
+		// TODO: maybe is better to return error to caller
 	}
 }
 
@@ -136,4 +172,13 @@ func removeDuplicates(slice []string) []string {
 	}
 
 	return result
+}
+
+func validateMicroserviceIsExist(s string, microservices []configs.Microservice) bool {
+	for _, item := range microservices {
+		if item.Name == s {
+			return true
+		}
+	}
+	return false
 }
