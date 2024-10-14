@@ -1,0 +1,9 @@
+version: v0.0.1
+requesters:
+  - abbasi_mohamad
+  - almasi_bi
+approvers:
+  - abbasi_mohamad
+rollback_permission:
+  - alaki
+token: ""
