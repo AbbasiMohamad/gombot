@@ -24,11 +24,13 @@ const (
 	NeedToApproved JobStatus = "needtoapproved"
 	Confirmed      JobStatus = "confirmed" // TODO: study about isolation in go
 	Done           JobStatus = "approved"
+	None           JobStatus = "none"
 )
 
 // TODO: fix approver & requester struct place in app
 type Approver struct {
 	Username string
+	Approved bool
 }
 
 type Requester struct {
