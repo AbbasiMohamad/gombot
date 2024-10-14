@@ -112,10 +112,7 @@ func SendMessageWithInlineKeyboardMarkup(b *bot.Bot, ctx context.Context, chatId
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "Button 1", CallbackData: "button_1"},
-				{Text: "Button 2", CallbackData: "button_2"},
-			}, {
-				{Text: "Button 3", CallbackData: "button_3"},
+				{Text: "تایید نسخه گذاری", CallbackData: "confirm"},
 			},
 		},
 	}

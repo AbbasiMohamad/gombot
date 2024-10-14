@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"gombot/pkg/configs"
 	"gombot/pkg/handlers"
-	"gombot/pkg/models"
+	model "gombot/pkg/models"
 	"log"
 	"os"
 	"os/signal"
@@ -25,7 +26,7 @@ func main() {
 
 	opts := []bot.Option{
 		bot.WithDefaultHandler(handlers.DefaultHandler),
-		bot.WithCallbackQueryDataHandler("button", bot.MatchTypePrefix, callbackHandler),
+		bot.WithCallbackQueryDataHandler("confirm", bot.MatchTypeExact, callbackHandler),
 	}
 
 	b, err := bot.New(config.Token, opts...)
@@ -44,23 +45,39 @@ func main() {
 }
 
 func callbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	// answering callback query first to let Telegram know that we received the callback query,
-	// and we're handling it. Otherwise, Telegram might retry sending the update repetitively
-	// as it thinks the callback query doesn't reach to our application. learn more by
-	// reading the footnote of the https://core.telegram.org/bots/api#callbackquery type.
+	var message string
 	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 		CallbackQueryID: update.CallbackQuery.ID,
-		ShowAlert:       false,
+		ShowAlert:       true,
 	})
+	isAuthorized := checkAccessToDoApprove(update.CallbackQuery.From.Username)
+	if isAuthorized {
+		message = "You are authorized to perform this action."
+	} else {
+		message = "You are not authorized to perform this action."
+	}
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID: update.CallbackQuery.Message.Message.Chat.ID,
-		Text:   "You selected the button: " + update.CallbackQuery.Data,
+		Text:   message,
 	})
+}
+func checkAccessToDoApprove(approver string) bool {
+	config, err := configs.LoadConfig(configs.ConfigPath)
+	if err != nil {
+		log.Fatalf("Error reading YAML file: %v", err)
+	}
+
+	for _, authenticApprover := range config.Approvers {
+		if approver == authenticApprover {
+			return true
+		}
+	}
+	return false
 }
 
 func NoName(ctx context.Context, b *bot.Bot) {
 	for {
-		job, err := models.PopFromQueue()
+		job, err := model.PopFromQueue()
 		if err != nil {
 			log.Printf("Error getting job from queue: %v", err)
 			time.Sleep(2 * time.Second)
@@ -69,20 +86,20 @@ func NoName(ctx context.Context, b *bot.Bot) {
 		// decide based on application status
 
 		switch job.Status {
-		case models.Requested:
+		case model.Requested:
 			// make a message to send
 			sendMessageForApprove(*job, ctx, b)
 			for _, app := range job.Applications {
-				app.Status = models.Pending
+				app.Status = model.Pending
 			}
-			job.Status = models.NeedToApproved
+			job.Status = model.NeedToApproved
 			break
-		case models.Confirmed:
+		case model.Confirmed:
 			// TODO: must to integrate with gitlab
 			// validate approvers is staisfied
 			// execute logic and update application status
 			break
-		case models.Done:
+		case model.Done:
 			break
 		default:
 			log.Printf("Unrecognized job status: %v", job.Status)
@@ -94,13 +111,12 @@ func NoName(ctx context.Context, b *bot.Bot) {
 }
 
 // TODO: use pointer?!
-func sendMessageForApprove(job models.Job, ctx context.Context, b *bot.Bot) {
+func sendMessageForApprove(job model.Job, ctx context.Context, b *bot.Bot) {
 	message := makeMessageForApprove(job)
-
 	handlers.SendMessageWithInlineKeyboardMarkup(b, ctx, job.ChatId, message)
 }
 
-func makeMessageForApprove(job models.Job) string {
+func makeMessageForApprove(job model.Job) string {
 	sb := strings.Builder{}
 	sb.WriteString("\nدرخواست نسخه گذاری برای اپلیکیشن های زیر:\n")
 	for _, application := range job.Applications {

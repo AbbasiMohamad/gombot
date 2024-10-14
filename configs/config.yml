@@ -3,7 +3,7 @@ requesters:
   - abbasi_mohamad
   - almasi_bi
 approvers:
-  - abbasi_mohamad
+  - abbasi_mohama
 rollback_permission:
   - alaki
 # need to restart after change
