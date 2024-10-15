@@ -42,6 +42,7 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	var applications []model.Application
 	config, _ := configs.LoadConfig(configs.ConfigPath)
 	for _, application := range applicationNames {
+		application = strings.ToLower(application)
 		if validateMicroserviceIsExist(application, config.Microservices) {
 			app := model.Application{
 				Name:   application,
@@ -49,6 +50,11 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 			}
 			applications = append(applications, app)
 		}
+	}
+	if len(applications) == 0 {
+		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
+		SendMessage(b, ctx, update.Message.Chat.ID, message)
+		return
 	}
 
 	var approvers []model.Approver
@@ -63,7 +69,6 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	job := model.Job{
 		JobId:        uuid.New(),
 		ChatId:       update.Message.Chat.ID,
-		MessageId:    update.Message.ID,
 		Applications: applications,
 		Status:       model.Requested,
 		Approvers:    approvers,
@@ -82,7 +87,7 @@ func StatusHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	}
 }
 
-func HelloHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HelpHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    update.Message.Chat.ID,
 		Text:      "Hello, *" + bot.EscapeMarkdown(update.Message.From.FirstName) + "*",
@@ -91,10 +96,7 @@ func HelloHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 }
 
 func DefaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: update.Message.Chat.ID,
-		Text:   "Say /hello",
-	})
+
 }
 
 func SendMessage(b *bot.Bot, ctx context.Context, chatId int64, message string) {
@@ -108,7 +110,7 @@ func SendMessage(b *bot.Bot, ctx context.Context, chatId int64, message string) 
 	}
 }
 
-func SendMessageWithInlineKeyboardMarkup(b *bot.Bot, ctx context.Context, chatId int64, message string) {
+func SendMessageWithInlineKeyboardMarkup(b *bot.Bot, ctx context.Context, chatId int64, message string) *models.Message {
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
@@ -116,7 +118,7 @@ func SendMessageWithInlineKeyboardMarkup(b *bot.Bot, ctx context.Context, chatId
 			},
 		},
 	}
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatId,
 		Text:        message,
 		ReplyMarkup: kb,
@@ -125,6 +127,7 @@ func SendMessageWithInlineKeyboardMarkup(b *bot.Bot, ctx context.Context, chatId
 		log.Println("There is a unknown error, Gombot can not send message!")
 		// TODO: maybe is better to return error to caller
 	}
+	return msg
 }
 
 func checkAccessToDoUpdate(requester string) bool {
@@ -144,7 +147,7 @@ func checkAccessToDoUpdate(requester string) bool {
 func parseCommand(s string) []string {
 	parsedNames := strings.Split(s, "\n")
 	var applications []string
-	for _, name := range parsedNames[1:] {
+	for _, name := range parsedNames {
 		parsedApplicationNames := strings.Split(strings.TrimSpace(name), " ")
 		if len(parsedApplicationNames) > 1 {
 			for _, appName := range parsedApplicationNames {
