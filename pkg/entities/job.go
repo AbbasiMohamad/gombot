@@ -31,10 +31,12 @@ type Job struct {
 
 // TODO: fix approver & requester struct place in app
 type Approver struct {
-	ID       uint
-	JobId    uint
-	Username string
-	Approved bool
+	ID         uint
+	JobId      uint
+	Username   string
+	FirstName  string
+	LastName   string
+	IsApproved bool
 }
 
 type Requester struct {

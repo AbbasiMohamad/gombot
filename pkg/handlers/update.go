@@ -91,17 +91,18 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 	})
 	isAuthorized := checkAccessToDoApprove(update.CallbackQuery.From.Username)
 	if isAuthorized {
-		job, _ := entities.PopJobByMessageIdFromQueue(update.CallbackQuery.Message.Message.ID) //TODO: error handling! and change method
+		//job, _ := entities.PopJobByMessageIdFromQueue(update.CallbackQuery.Message.Message.ID) //TODO: error handling! and change method
+		job := repositories.GetJobByMessageId(update.CallbackQuery.Message.Message.ID)
 		if job.ChatId == update.CallbackQuery.Message.Message.Chat.ID {
 			for i, _ := range job.Approvers {
 				if job.Approvers[i].Username == update.CallbackQuery.From.Username {
-					job.Approvers[i].Approved = true
+					job.Approvers[i].IsApproved = true
 				}
 			}
 			message = makeMessageForApprove(*job)
 			allApproved := true
 			for _, approver := range job.Approvers {
-				if !approver.Approved {
+				if !approver.IsApproved {
 					allApproved = false
 				}
 			}
@@ -128,6 +129,8 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 					ReplyMarkup: kb,
 				})
 			}
+
+			repositories.UpdateJob(job)
 
 		}
 
@@ -174,7 +177,7 @@ func makeMessageForApprove(job entities.Job) string {
 	sb.WriteString("\n-----------------------\n")
 	sb.WriteString("تایید کنندگان: \n" + fmt.Sprintf("\n(%d/%d)\n", 0, len(job.Approvers)))
 	for _, approver := range job.Approvers {
-		if approver.Approved {
+		if approver.IsApproved {
 			sb.WriteString("@" + approver.Username + " 👍\n")
 		} else {
 			sb.WriteString("@" + approver.Username + "\n")

@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"github.com/google/uuid"
 	"gombot/pkg/entities"
 )
 
@@ -11,10 +10,11 @@ func InsertJob(job *entities.Job) uint {
 	return job.ID
 }
 
-func GetJobById(jobId uuid.UUID) *entities.Job {
+func GetJobByMessageId(messageId int) *entities.Job {
 	db := DbConnect()
 	var job *entities.Job
-	db.First(&job, "job_id = ?", jobId)
+	db.Preload("Applications").Preload("Approvers").
+		Preload("Requester").First(&job, "message_id = ?", messageId)
 	return job
 }
 
