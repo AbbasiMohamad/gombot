@@ -6,6 +6,7 @@ import (
 	"gombot/pkg/configs"
 	"gombot/pkg/entities"
 	"gombot/pkg/handlers"
+	"gombot/pkg/repositories"
 	"log"
 	"os"
 	"os/signal"
@@ -13,11 +14,12 @@ import (
 )
 
 /*
-TODO and links
+todo and notes
 https://ramadhansalmanalfarisi8.medium.com/how-to-dockerize-your-api-with-go-postgresql-gin-docker-9a2b16548520
 postgres run command: docker run --name postgres -e POSTGRES_USER=gombot -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres
 + cancel delete the request message
 + audit property for entities
++ improve requester fields
 */
 
 const (
@@ -54,8 +56,14 @@ func main() {
 func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 	for {
 		var job *entities.Job
-		jobs, err := entities.PopRequestedJobsFromQueue()
+		/*jobs, err := entities.PopRequestedJobsFromQueue()
 		if err != nil {
+			sleep()
+			continue
+		}*/
+
+		jobs := repositories.GetRequestedJobs()
+		if len(jobs) == 0 {
 			sleep()
 			continue
 		}
@@ -72,10 +80,12 @@ func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 					if jobs[i].MessageId == 0 {
 						jobs[i].MessageId = messageId
 					}
+					repositories.UpdateJob(jobs[i])
 				}
 			}
 			continue
 		} else {
+			var err error
 			job, err = entities.PopLastItemFromQueue()
 			if err != nil {
 				sleep()

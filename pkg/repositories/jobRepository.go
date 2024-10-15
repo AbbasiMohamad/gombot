@@ -21,6 +21,12 @@ func GetJobById(jobId uuid.UUID) *entities.Job {
 func GetRequestedJobs() []*entities.Job {
 	db := DbConnect()
 	var jobs []*entities.Job
-	db.Find(&jobs, "status = ?", entities.Requested)
+	db.Preload("Applications").Preload("Approvers").
+		Preload("Requester").Find(&jobs, "status = ?", entities.Requested)
 	return jobs
+}
+
+func UpdateJob(job *entities.Job) {
+	db := DbConnect()
+	db.Model(&job).Updates(job)
 }
