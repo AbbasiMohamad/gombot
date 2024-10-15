@@ -2,12 +2,13 @@ version: v0.0.1
 requesters:
   - abbasi_mohamad
   - almasi_bi
+  - afshin990karimi
 approvers:
   - abbasi_mohamad
 rollback_permission:
   - alaki
 # need to restart after change
-token: "480176318:kAUadsCw1DlURmwGVni4SytzL38Zp58TrNUC6XGx"
+token: ""
 microservices:
   - name: "import"
     gitlab_url: "https://code.irica.ir"
@@ -16,5 +17,8 @@ microservices:
     gitlab_url: "https://code.irica.ir"
     branch: "rc"
   - name: "gate"
+    gitlab_url: "https://code.irica.ir"
+    branch: "rc"
+  - name: "mdm"
     gitlab_url: "https://code.irica.ir"
     branch: "rc"

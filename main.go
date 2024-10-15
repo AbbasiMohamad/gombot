@@ -53,7 +53,7 @@ func callbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	})
 	isAuthorized := checkAccessToDoApprove(update.CallbackQuery.From.Username)
 	if isAuthorized {
-		job, _ := model.PopFromQueue() //TODO: error handling!
+		job, _ := model.PopJobByMessageIdFromQueue(update.CallbackQuery.Message.Message.ID) //TODO: error handling! and change method
 		if job.ChatId == update.CallbackQuery.Message.Message.Chat.ID {
 			for i, _ := range job.Approvers {
 				if job.Approvers[i].Username == update.CallbackQuery.From.Username {
@@ -67,6 +67,7 @@ func callbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 					allApproved = false
 				}
 			}
+
 			if allApproved {
 				job.Status = model.Confirmed
 				b.EditMessageText(ctx, &bot.EditMessageTextParams{
@@ -118,14 +119,37 @@ func checkAccessToDoApprove(approver string) bool {
 
 func NoName(ctx context.Context, b *bot.Bot) {
 	for {
-		job, err := model.PopFromQueue()
+		var job *model.Job
+		jobs, err := model.PopRequestedJobsFromQueue()
 		if err != nil {
-			log.Printf("Error getting job from queue: %v", err)
-			time.Sleep(2 * time.Second)
+			time.Sleep(2 * time.Second) //TODO: make sleep method and read from config
 			continue
 		}
-		// decide based on application status
 
+		if len(jobs) > 0 {
+			for i, _ := range jobs {
+				if jobs[i].Status == model.Requested {
+					messageId := sendMessageForApprove(*jobs[i], ctx, b)
+					for j, _ := range jobs[i].Applications {
+						jobs[i].Applications[j].Status = model.Pending
+					}
+					jobs[i].Status = model.NeedToApproved
+					//important: update message id of job
+					if jobs[i].MessageId == 0 {
+						jobs[i].MessageId = messageId
+					}
+				}
+			}
+			continue
+		} else {
+			job, err = model.PopLastItemFromQueue()
+			if err != nil {
+				time.Sleep(2 * time.Second)
+				continue
+			}
+		}
+
+		// decide based on application status
 		switch job.Status {
 		case model.Requested:
 			// make a message to send
@@ -137,17 +161,22 @@ func NoName(ctx context.Context, b *bot.Bot) {
 			break
 		case model.Confirmed:
 			// TODO: must to integrate with gitlab
-			handlers.SendMessage(b, ctx, job.ChatId, "فرایند بیلد اپلیکیشن آغاز شد")
+			handlers.SendMessage(b, ctx, job.ChatId, "فرایند بیلد اپلیکیشن آغاز شد"+"  "+job.JobId.String())
 			job.Status = model.Done
 			// validate approvers is staisfied
 			// execute logic and update application status
 			break
 		case model.Done:
-			handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد")
+			handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد"+"  "+job.JobId.String())
 			job.Status = model.None
+			// dequeue from queue
+			err := model.DequeueLastItemFromQueue()
+			if err != nil {
+				log.Println("Trying to dequeue from empty queue")
+			}
 			break
 		default:
-			log.Printf("Unrecognized job status: %v", job.Status)
+			log.Printf("Unrecognized job status: %v", job.Status) // TODO: Its better to delete this
 		}
 
 		time.Sleep(2 * time.Second)
@@ -156,9 +185,10 @@ func NoName(ctx context.Context, b *bot.Bot) {
 }
 
 // TODO: use pointer?!
-func sendMessageForApprove(job model.Job, ctx context.Context, b *bot.Bot) {
+func sendMessageForApprove(job model.Job, ctx context.Context, b *bot.Bot) int {
 	message := makeMessageForApprove(job)
-	handlers.SendMessageWithInlineKeyboardMarkup(b, ctx, job.ChatId, message)
+	msg := handlers.SendMessageWithInlineKeyboardMarkup(b, ctx, job.ChatId, message)
+	return msg.ID
 }
 
 func makeMessageForApprove(job model.Job) string {

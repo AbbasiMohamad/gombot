@@ -44,9 +44,54 @@ func PushToQueue(q *Job) {
 	Queue = append(Queue, *q)
 }
 
-func PopFromQueue() (*Job, error) {
-	if Queue == nil {
+func PopLastItemFromQueue() (*Job, error) {
+	if Queue == nil || len(Queue) == 0 {
 		return &Job{}, errors.New("There is no item in queue")
 	}
 	return &Queue[0], nil
+}
+
+func PopJobByChatIdFromQueue(chatId int64) (*Job, error) {
+	if Queue == nil || len(Queue) == 0 {
+		return &Job{}, errors.New("There is no item in queue")
+	}
+	for i, _ := range Queue {
+		if Queue[i].ChatId == chatId {
+			return &Queue[i], nil
+		}
+	}
+	return &Job{}, errors.New("There is no item in queue")
+}
+
+func PopJobByMessageIdFromQueue(messageId int) (*Job, error) {
+	if Queue == nil || len(Queue) == 0 {
+		return &Job{}, errors.New("There is no item in queue")
+	}
+	for i, _ := range Queue {
+		if Queue[i].MessageId == messageId {
+			return &Queue[i], nil
+		}
+	}
+	return &Job{}, errors.New("There is no item in queue")
+}
+
+func PopRequestedJobsFromQueue() ([]*Job, error) {
+	if Queue == nil {
+		return []*Job{}, errors.New("There is no item in queue")
+	}
+	var requestedJobs []*Job
+	for i, _ := range Queue {
+		if Queue[i].Status == Requested {
+			requestedJobs = append(requestedJobs, &Queue[i])
+		}
+	}
+	return requestedJobs, nil
+}
+
+func DequeueLastItemFromQueue() error {
+	if Queue == nil {
+		return errors.New("There is no item in queue")
+	}
+	Queue = Queue[1:]
+	return nil
 }
