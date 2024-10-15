@@ -5,18 +5,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// TODO: need to make isolate this module
-var Queue []Job
-
-type Job struct {
-	JobId        uuid.UUID
-	ChatId       int64
-	MessageId    int
-	Applications []Application
-	Approvers    []Approver
-	Requester    Requester
-	Status       JobStatus
-}
 type JobStatus string
 
 const (
@@ -27,14 +15,34 @@ const (
 	None           JobStatus = "none"
 )
 
+// TODO: need to make isolate this module
+var Queue []Job
+
+type Job struct {
+	ID           uint
+	JobId        uuid.UUID
+	ChatId       int64
+	MessageId    int
+	Applications []Application
+	Approvers    []Approver
+	Requester    Requester
+	Status       JobStatus
+}
+
 // TODO: fix approver & requester struct place in app
 type Approver struct {
+	ID       uint
+	JobId    uint
 	Username string
 	Approved bool
 }
 
 type Requester struct {
-	Username string
+	ID        uint
+	JobId     uint
+	Username  string
+	FirstName string
+	LastName  string
 }
 
 func PushToQueue(q *Job) {

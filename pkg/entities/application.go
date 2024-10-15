@@ -1,13 +1,15 @@
 package entities
 
 type Application struct {
+	ID        uint
+	JobID     uint
 	Name      string
 	Status    ApplicationStatus
 	GitlabUrl string
 	Branch    string
 }
 
-type ApplicationStatus string
+type ApplicationStatus string // TODO: GPT this statement
 
 const (
 	Declared     ApplicationStatus = "declared"

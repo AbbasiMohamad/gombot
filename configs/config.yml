@@ -1,4 +1,11 @@
 version: v0.0.1
+database:
+  host: localhost
+  username: gombot
+  password: password
+  dbname: gombot # TODO: it seems dbname dose not support in pg connection string
+  port: 5432
+  needMigration: true
 requesters:
   - abbasi_mohamad
   - almasi_bi
@@ -8,7 +15,7 @@ approvers:
 rollback_permission:
   - alaki
 # need to restart after change
-token: ""
+token: "2120196445:Qi8AHAbdMeUR7O6zZRf5relALw32HKOThZlZmrtP"
 microservices:
   - name: "import"
     gitlab_url: "https://code.irica.ir"

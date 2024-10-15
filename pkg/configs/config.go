@@ -9,11 +9,12 @@ import (
 const ConfigPath = "./configs/config.yml"
 
 type Config struct {
-	Version       string         `yaml:"version"`
-	Requesters    []string       `yaml:"requesters"`
-	Approvers     []string       `yaml:"approvers"`
-	Token         string         `yaml:"token"`
-	Microservices []Microservice `yaml:"microservices"`
+	Version        string         `yaml:"version"`
+	Requesters     []string       `yaml:"requesters"`
+	Approvers      []string       `yaml:"approvers"`
+	Token          string         `yaml:"token"`
+	Microservices  []Microservice `yaml:"microservices"`
+	DatabaseConfig DatabaseConfig `yaml:"database"`
 }
 
 type Microservice struct {
@@ -22,15 +23,24 @@ type Microservice struct {
 	Branch    string `yaml:"branch"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+type DatabaseConfig struct {
+	Host          string `yaml:"host"`
+	Port          int    `yaml:"port"`
+	Username      string `yaml:"username"`
+	Password      string `yaml:"password"`
+	Database      string `yaml:"dbname"`
+	NeedMigration bool   `yaml:"needMigration"`
+}
+
+func LoadConfig(path string) *Config {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		panic("failed to load config. check the config path.") //TODO: investigate about panic!
 	}
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
-		return nil, err
+		panic("failed to load config. can not unmarshal config file.")
 	}
-	return &config, nil
+	return &config
 }

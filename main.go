@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/go-telegram/bot"
 	"gombot/pkg/configs"
-	model "gombot/pkg/entities"
+	"gombot/pkg/entities"
 	"gombot/pkg/handlers"
 	"log"
 	"os"
@@ -12,15 +12,20 @@ import (
 	"time"
 )
 
+/*
+TODO and links
+https://ramadhansalmanalfarisi8.medium.com/how-to-dockerize-your-api-with-go-postgresql-gin-docker-9a2b16548520
+postgres run command: docker run --name postgres -e POSTGRES_USER=gombot -e POSTGRES_PASSWORD=password -p 5432:5432 -d postgres
++ cancel delete the request message
++ audit property for entities
+*/
+
 const (
 	SleepTime = 2 * time.Second
 )
 
 func main() {
-	config, err := configs.LoadConfig(configs.ConfigPath)
-	if err != nil {
-		log.Fatalf("Error reading YAML file: %v", err)
-	}
+	config := configs.LoadConfig(configs.ConfigPath)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -39,6 +44,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, handlers.HelpHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/update", bot.MatchTypePrefix, handlers.UpdateHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/status", bot.MatchTypePrefix, handlers.StatusHandler)
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/test", bot.MatchTypePrefix, handlers.TestHandler)
 
 	go executeMonitoringOfQueue(ctx, b)
 	log.Println("Bot is now running.  Press CTRL-C to exit.")
@@ -47,21 +53,21 @@ func main() {
 
 func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 	for {
-		var job *model.Job
-		jobs, err := model.PopRequestedJobsFromQueue()
+		var job *entities.Job
+		jobs, err := entities.PopRequestedJobsFromQueue()
 		if err != nil {
-			sleep() //TODO: make sleep method and read from config
+			sleep()
 			continue
 		}
 
 		if len(jobs) > 0 {
 			for i, _ := range jobs {
-				if jobs[i].Status == model.Requested {
+				if jobs[i].Status == entities.Requested {
 					messageId := handlers.SendMessageForApprove(*jobs[i], ctx, b)
 					for j, _ := range jobs[i].Applications {
-						jobs[i].Applications[j].Status = model.Pending
+						jobs[i].Applications[j].Status = entities.Pending
 					}
-					jobs[i].Status = model.NeedToApproved
+					jobs[i].Status = entities.NeedToApproved
 					//important: update message id of job
 					if jobs[i].MessageId == 0 {
 						jobs[i].MessageId = messageId
@@ -70,7 +76,7 @@ func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 			}
 			continue
 		} else {
-			job, err = model.PopLastItemFromQueue()
+			job, err = entities.PopLastItemFromQueue()
 			if err != nil {
 				sleep()
 				continue
@@ -79,26 +85,26 @@ func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 
 		// decide based on application status
 		switch job.Status {
-		case model.Requested:
+		case entities.Requested:
 			// make a message to send
 			handlers.SendMessageForApprove(*job, ctx, b)
 			for _, app := range job.Applications {
-				app.Status = model.Pending
+				app.Status = entities.Pending
 			}
-			job.Status = model.NeedToApproved
+			job.Status = entities.NeedToApproved
 			break
-		case model.Confirmed:
+		case entities.Confirmed:
 			// TODO: must to integrate with gitlab
 			handlers.SendMessage(b, ctx, job.ChatId, "فرایند بیلد اپلیکیشن آغاز شد"+"  "+job.JobId.String())
-			job.Status = model.Done
+			job.Status = entities.Done
 			// validate approvers is staisfied
 			// execute logic and update application status
 			break
-		case model.Done:
+		case entities.Done:
 			handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد"+"  "+job.JobId.String())
-			job.Status = model.None
+			job.Status = entities.None
 			// dequeue from queue
-			err := model.DequeueLastItemFromQueue()
+			err := entities.DequeueLastItemFromQueue()
 			if err != nil {
 				log.Println("Trying to dequeue from empty queue")
 			}
