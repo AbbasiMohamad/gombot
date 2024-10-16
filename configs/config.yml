@@ -11,21 +11,37 @@ requesters:
   - almasi_bi
   - afshin990karimi
 approvers:
-  - abbasi_mohamad
+  - fullName: "محمد عباسی"
+    username: abbasi_mohamad
+  - fullName: "امیر الماسی"
+    username: almasi_bi
 rollback_permission:
   - alaki
 # need to restart after change
-token: "2120196445:Qi8AHAbdMeUR7O6zZRf5relALw32HKOThZlZmrtP"
+token: ""
 microservices:
   - name: "import"
     gitlab_url: "https://code.irica.ir"
     branch: "rc"
+    needToApprove: true
+    persianName: "واردات"
   - name: "financial"
     gitlab_url: "https://code.irica.ir"
     branch: "rc"
+    needToApprove: true
+    persianName: "مالی"
   - name: "gate"
     gitlab_url: "https://code.irica.ir"
     branch: "rc"
+    needToApprove: true
+    persianName: "درب خروج"
   - name: "mdm"
     gitlab_url: "https://code.irica.ir"
     branch: "rc"
+    needToApprove: true
+    persianName: "اطلاعات پایه"
+  - name: "component"
+    gitlab_url: "https://code.irica.ir"
+    branch: "rc"
+    needToApprove: false
+    persianName: "کامپوننت های پایه"

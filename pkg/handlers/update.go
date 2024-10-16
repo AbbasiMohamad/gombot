@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -11,6 +12,7 @@ import (
 	"gombot/pkg/repositories"
 	"log"
 	"strings"
+	"time"
 )
 
 func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -34,26 +36,31 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	// parse command
 	applicationNames := parseUpdateCommand(update.Message.Text)
-	if len(applicationNames) == 0 {
-		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
-		SendMessage(b, ctx, update.Message.Chat.ID, message)
-		return
-	}
+
 	// validate application existance
 	var applications []entities.Application
 	config := configs.LoadConfig(configs.ConfigPath)
-	for _, application := range applicationNames {
-		application = strings.ToLower(application)
-		if validateMicroserviceIsExist(application, config.Microservices) {
-			app := entities.Application{
-				Name:   application,
-				Status: entities.Declared,
+
+	if len(applicationNames) > 0 {
+		for _, application := range applicationNames {
+			application = strings.ToLower(application)
+			if validateMicroserviceIsExist(application, config.Microservices) {
+				appConfig, err := getMicroserviceConfig(application, config.Microservices)
+				if err != nil {
+					log.Printf("there is dangrouse error") // TODO: fix that
+				}
+				app := entities.Application{
+					Name:          application,
+					PersianName:   appConfig.PersianName,
+					NeedToApprove: appConfig.NeedToApprove,
+					Status:        entities.Declared,
+				}
+				applications = append(applications, app)
 			}
-			applications = append(applications, app)
 		}
 	}
 
-	if len(applications) == 0 {
+	if len(applications) == 0 || applications == nil {
 		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
 		SendMessage(b, ctx, update.Message.Chat.ID, message)
 		return
@@ -62,11 +69,13 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	var approvers []entities.Approver
 	for _, approver := range config.Approvers {
 		approvers = append(approvers, entities.Approver{
-			Username: approver,
+			Username: approver.Username,
+			FullName: approver.FullName,
 		})
 	}
 	requester := entities.Requester{
 		Username: update.Message.From.Username,
+		FullName: update.Message.From.FirstName + " " + update.Message.From.LastName,
 	}
 	job := entities.Job{
 		JobId:        uuid.New(),
@@ -75,6 +84,7 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		Status:       entities.Requested,
 		Approvers:    approvers,
 		Requester:    requester,
+		CreatedAt:    time.Now(),
 	}
 	// need to be approve
 	if repositories.InsertJob(&job) > 0 {
@@ -91,7 +101,6 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 	})
 	isAuthorized := checkAccessToDoApprove(update.CallbackQuery.From.Username)
 	if isAuthorized {
-		//job, _ := entities.PopJobByMessageIdFromQueue(update.CallbackQuery.Message.Message.ID) //TODO: error handling! and change method
 		job := repositories.GetJobByMessageId(update.CallbackQuery.Message.Message.ID)
 		if job.ChatId == update.CallbackQuery.Message.Message.Chat.ID {
 			for i, _ := range job.Approvers {
@@ -114,6 +123,7 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 					MessageID: update.CallbackQuery.Message.Message.ID,
 					Text:      message,
 				})
+				//repositories.UpdateJob(job)
 			} else {
 				kb := &models.InlineKeyboardMarkup{
 					InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -128,6 +138,7 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 					Text:        message,
 					ReplyMarkup: kb,
 				})
+				//repositories.UpdateJob(job)
 			}
 
 			repositories.UpdateJob(job)
@@ -155,37 +166,11 @@ func checkAccessToDoApprove(approver string) bool {
 	config := configs.LoadConfig(configs.ConfigPath)
 
 	for _, authenticApprover := range config.Approvers {
-		if approver == authenticApprover {
+		if approver == authenticApprover.Username {
 			return true
 		}
 	}
 	return false
-}
-
-func makeMessageForApprove(job entities.Job) string {
-	sb := strings.Builder{}
-	sb.WriteString("\nدرخواست نسخه گذاری برای اپلیکیشن های زیر:\n")
-	for _, application := range job.Applications {
-		sb.WriteString(application.Name + "\n")
-	}
-	sb.WriteString("\n-----------------------\n")
-	sb.WriteString("کد درخواست: " + job.JobId.String())
-	sb.WriteString("\n-----------------------\n")
-	sb.WriteString("درخواست کننده: " + job.Requester.Username)
-	sb.WriteString("\n-----------------------\n")
-	sb.WriteString("وضعیت درخواست: در انتظار تایید کنندگان ")
-	sb.WriteString("\n-----------------------\n")
-	sb.WriteString("تایید کنندگان: \n" + fmt.Sprintf("\n(%d/%d)\n", 0, len(job.Approvers)))
-	for _, approver := range job.Approvers {
-		if approver.IsApproved {
-			sb.WriteString("@" + approver.Username + " 👍\n")
-		} else {
-			sb.WriteString("@" + approver.Username + "\n")
-		}
-
-	}
-	sb.WriteString("\n-----------------------\n")
-	return sb.String()
 }
 
 func parseUpdateCommand(s string) []string {
@@ -235,4 +220,41 @@ func validateMicroserviceIsExist(s string, microservices []configs.Microservice)
 		}
 	}
 	return false
+}
+func getMicroserviceConfig(s string, microservices []configs.Microservice) (configs.Microservice, error) {
+	for _, item := range microservices {
+		if item.Name == s {
+			return item, nil
+		}
+	}
+	return configs.Microservice{}, errors.New("there is no any corresponding microservice config")
+}
+func makeMessageForApprove(job entities.Job) string {
+	sb := strings.Builder{}
+	year, month, day := job.CreatedAt.Date()
+	sb.WriteString(fmt.Sprintf("✉️ *اعلان درخواست نسخه‌گذاری در تاریخ %v/%v/%v*", year, month, day))
+	sb.WriteString("\n\n")
+	sb.WriteString(fmt.Sprintf("بدینوسیله اطلاع داده می‌شود که آقای *%s*(@%s) درخواستِ آپدیت برای ماژول‌(های) زیر را دارد.", job.Requester.FullName, job.Requester.Username))
+	sb.WriteString("\n\n")
+
+	for _, application := range job.Applications {
+		sb.WriteString(fmt.Sprintf("▪ *%s* (%s) \n", application.PersianName, application.Name))
+	}
+
+	sb.WriteString("\n\n")
+	sb.WriteString("▫️وضعیت درخواست: *در انتظار تایید*\n")
+	sb.WriteString("▫️لیست تایید کنندگان مجاز:\n")
+
+	for _, approver := range job.Approvers {
+		if approver.IsApproved {
+			sb.WriteString(fmt.Sprintf("▪️آقای *%s* (@%s) | وضعیت: *تایید* 🟢\n", approver.FullName, approver.Username))
+		} else {
+			sb.WriteString(fmt.Sprintf("▪️آقای *%s* (@%s) | وضعیت: *عدم تایید* ⚪\n", approver.FullName, approver.Username))
+		}
+	}
+	sb.WriteString("\n")
+	sb.WriteString("\n---------------------------------------------------------------------\n")
+	sb.WriteString("▫️ برای کنسل کردن درخواست دستور زیر را وارد کنید:\n")
+	sb.WriteString(fmt.Sprintf("/cancel  %s", job.JobId))
+	return sb.String()
 }

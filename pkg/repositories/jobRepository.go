@@ -1,17 +1,19 @@
 package repositories
 
 import (
+	"errors"
 	"gombot/pkg/entities"
+	"gorm.io/gorm"
 )
 
 func InsertJob(job *entities.Job) uint {
-	db := DbConnect()
+	db = DbConnect()
 	db.Create(&job)
 	return job.ID
 }
 
 func GetJobByMessageId(messageId int) *entities.Job {
-	db := DbConnect()
+	db = DbConnect()
 	var job *entities.Job
 	db.Preload("Applications").Preload("Approvers").
 		Preload("Requester").First(&job, "message_id = ?", messageId)
@@ -19,7 +21,7 @@ func GetJobByMessageId(messageId int) *entities.Job {
 }
 
 func GetRequestedJobs() []*entities.Job {
-	db := DbConnect()
+	db = DbConnect()
 	var jobs []*entities.Job
 	db.Preload("Applications").Preload("Approvers").
 		Preload("Requester").Find(&jobs, "status = ?", entities.Requested)
@@ -27,6 +29,78 @@ func GetRequestedJobs() []*entities.Job {
 }
 
 func UpdateJob(job *entities.Job) {
-	db := DbConnect()
-	db.Model(&job).Updates(job)
+	db = DbConnect()
+	db.Transaction(func(tx *gorm.DB) error {
+		// First update the Job
+		if err := tx.Save(&job).Error; err != nil {
+			return err
+		}
+
+		// Now update the Approvers
+		for _, approver := range job.Approvers {
+			if err := tx.Model(&entities.Approver{}).Where("id = ?", approver.ID).Updates(approver).Error; err != nil { //TODO: investigate this syntax
+				return err
+			}
+		}
+
+		// Now update the Application
+		for _, app := range job.Applications {
+			if err := tx.Model(&entities.Application{}).Where("id = ?", app.ID).Updates(app).Error; err != nil { //TODO: investigate this syntax
+				return err
+			}
+		}
+
+		return nil
+	})
+
+}
+
+func GetFirstApprovedJob() (*entities.Job, error) {
+	db = DbConnect()
+	var job *entities.Job
+	// Query the first approved job
+	result := db.Preload("Applications").
+		Preload("Approvers").
+		Preload("Requester").
+		Where("status <= ?", entities.Confirmed).
+		Order("created_at").First(&job)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New("there is no approved job in the database")
+		}
+		return nil, result.Error // Return any other database error
+	}
+
+	return job, nil
+}
+
+func GetFirstDoneJob() (*entities.Job, error) {
+	db = DbConnect()
+	var job *entities.Job
+	// Query the first approved job
+	result := db.Preload("Applications").
+		Preload("Approvers").
+		Preload("Requester").
+		Where("status = ?", entities.Done).
+		Order("created_at").First(&job)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New("there is no approved job in the database")
+		}
+		return nil, result.Error // Return any other database error
+	}
+
+	return job, nil
+}
+
+func IsInProgressJob() bool {
+	db = DbConnect()
+	var job *entities.Job
+	db.Find(&job, "status = ?", entities.InProgress) // TODO : make query with count
+	if job.ID == 0 {                                 // TODO: improve error checking
+		return false
+	}
+	return true
 }

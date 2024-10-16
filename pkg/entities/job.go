@@ -3,19 +3,24 @@ package entities
 import (
 	"errors"
 	"github.com/google/uuid"
+	"time"
 )
 
-type JobStatus string
+type JobStatus int
 
 const (
-	Requested      JobStatus = "requested"
-	NeedToApproved JobStatus = "needtoapproved"
-	Confirmed      JobStatus = "confirmed" // TODO: study about isolation in go
-	Done           JobStatus = "approved"
-	None           JobStatus = "none"
+	Requested      JobStatus = 1
+	NeedToApproved JobStatus = 2
+	Confirmed      JobStatus = 3 // TODO: study about isolation in go
+	InProgress     JobStatus = 4 // TODO: study about isolation in go
+	Done           JobStatus = 5
+	Finished       JobStatus = 6
+	Canceled       JobStatus = 7
+	None           JobStatus = 8
 )
 
 // TODO: need to make isolate this module
+
 var Queue []Job
 
 type Job struct {
@@ -27,6 +32,7 @@ type Job struct {
 	Approvers    []Approver
 	Requester    Requester
 	Status       JobStatus
+	CreatedAt    time.Time
 }
 
 // TODO: fix approver & requester struct place in app
@@ -34,17 +40,15 @@ type Approver struct {
 	ID         uint
 	JobId      uint
 	Username   string
-	FirstName  string
-	LastName   string
+	FullName   string //TODO: we dont have fullname of approvers
 	IsApproved bool
 }
 
 type Requester struct {
-	ID        uint
-	JobId     uint
-	Username  string
-	FirstName string
-	LastName  string
+	ID       uint
+	JobId    uint
+	Username string
+	FullName string
 }
 
 func PushToQueue(q *Job) {
@@ -70,7 +74,7 @@ func PopJobByChatIdFromQueue(chatId int64) (*Job, error) {
 			return &Queue[i], nil
 		}
 	}
-	return &Job{}, errors.New("There is no item in queue")
+	return &Job{}, errors.New("there is no item in queue")
 }
 
 func PopJobByMessageIdFromQueue(messageId int) (*Job, error) {
@@ -82,7 +86,7 @@ func PopJobByMessageIdFromQueue(messageId int) (*Job, error) {
 			return &Queue[i], nil
 		}
 	}
-	return &Job{}, errors.New("There is no item in queue")
+	return &Job{}, errors.New("there is no item in queue")
 }
 
 func PopRequestedJobsFromQueue() ([]*Job, error) {

@@ -20,6 +20,7 @@ postgres run command: docker run --name postgres -e POSTGRES_USER=gombot -e POST
 + cancel delete the request message
 + audit property for entities
 + improve requester fields
++ study about shadow variables
 */
 
 const (
@@ -48,19 +49,15 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/status", bot.MatchTypePrefix, handlers.StatusHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/test", bot.MatchTypePrefix, handlers.TestHandler)
 
-	go executeMonitoringOfQueue(ctx, b)
+	go executeMonitoringOfRequestedJobs(ctx, b)
+	go executeMonitoringOfApprovedJobs(ctx, b)
+	go executeMonitoringOfDoneJobs(ctx, b)
+
 	log.Println("Bot is now running.  Press CTRL-C to exit.")
 	b.Start(ctx)
 }
-
-func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
+func executeMonitoringOfRequestedJobs(ctx context.Context, b *bot.Bot) {
 	for {
-		var job *entities.Job
-		/*jobs, err := entities.PopRequestedJobsFromQueue()
-		if err != nil {
-			sleep()
-			continue
-		}*/
 
 		jobs := repositories.GetRequestedJobs()
 		if len(jobs) == 0 {
@@ -84,40 +81,42 @@ func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 				}
 			}
 			continue
-		} else {
-			var err error
-			job, err = entities.PopLastItemFromQueue()
-			if err != nil {
-				sleep()
-				continue
-			}
+		}
+	}
+}
+
+func executeMonitoringOfApprovedJobs(ctx context.Context, b *bot.Bot) {
+	for {
+
+		job, err := repositories.GetFirstApprovedJob()
+		if err != nil {
+			sleep()
+			continue
 		}
 
 		// decide based on application status
 		switch job.Status {
-		case entities.Requested:
-			// make a message to send
-			handlers.SendMessageForApprove(*job, ctx, b)
-			for _, app := range job.Applications {
-				app.Status = entities.Pending
-			}
-			job.Status = entities.NeedToApproved
-			break
+
 		case entities.Confirmed:
 			// TODO: must to integrate with gitlab
-			handlers.SendMessage(b, ctx, job.ChatId, "فرایند بیلد اپلیکیشن آغاز شد"+"  "+job.JobId.String())
-			job.Status = entities.Done
-			// validate approvers is staisfied
-			// execute logic and update application status
+			if !repositories.IsInProgressJob() {
+				job.Status = entities.InProgress
+				handlers.SendMessage(b, ctx, job.ChatId, "فرایند بیلد اپلیکیشن آغاز شد"+"  "+job.JobId.String())
+				// validate approvers is staisfied
+				// execute logic and update application status
+				doSomething(job)
+				repositories.UpdateJob(job)
+			}
 			break
 		case entities.Done:
 			handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد"+"  "+job.JobId.String())
-			job.Status = entities.None
+			job.Status = entities.Finished
 			// dequeue from queue
 			err := entities.DequeueLastItemFromQueue()
 			if err != nil {
-				log.Println("Trying to dequeue from empty queue")
+				log.Println("trying to dequeue from empty queue")
 			}
+			repositories.UpdateJob(job)
 			break
 		default:
 			log.Printf("Unrecognized job status: %v", job.Status) // TODO: Its better to delete this
@@ -126,6 +125,24 @@ func executeMonitoringOfQueue(ctx context.Context, b *bot.Bot) {
 	}
 }
 
+func executeMonitoringOfDoneJobs(ctx context.Context, b *bot.Bot) {
+	for {
+		job, err := repositories.GetFirstDoneJob()
+		if err != nil {
+			sleep()
+			continue
+		}
+		// doing some logic
+		handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد"+"  "+job.JobId.String())
+		job.Status = entities.Finished
+		repositories.UpdateJob(job)
+	}
+}
+
+func doSomething(job *entities.Job) {
+	time.Sleep(15 * time.Second)
+	job.Status = entities.Done
+}
 func sleep() {
 	time.Sleep(SleepTime)
 }

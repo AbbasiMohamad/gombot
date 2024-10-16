@@ -11,16 +11,23 @@ const ConfigPath = "./configs/config.yml"
 type Config struct {
 	Version        string         `yaml:"version"`
 	Requesters     []string       `yaml:"requesters"`
-	Approvers      []string       `yaml:"approvers"`
+	Approvers      []Approvers    `yaml:"approvers"`
 	Token          string         `yaml:"token"`
 	Microservices  []Microservice `yaml:"microservices"`
 	DatabaseConfig DatabaseConfig `yaml:"database"`
 }
 
+type Approvers struct {
+	FullName string `yaml:"fullName"`
+	Username string `yaml:"username"`
+}
+
 type Microservice struct {
-	Name      string `yaml:"name"`
-	GitlabUrl string `yaml:"gitlab_url"`
-	Branch    string `yaml:"branch"`
+	Name          string `yaml:"name"`
+	PersianName   string `yaml:"persianName"`
+	GitlabUrl     string `yaml:"gitlab_url"`
+	Branch        string `yaml:"branch"`
+	NeedToApprove bool   `yaml:"needToApprove"`
 }
 
 type DatabaseConfig struct {

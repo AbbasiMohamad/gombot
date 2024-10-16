@@ -16,12 +16,17 @@ type Product struct {
 }
 
 var isInitialized = false
+var db *gorm.DB
 
 func DbConnect() *gorm.DB {
+	if db != nil {
+		return db
+	}
 	cfg := configs.LoadConfig(configs.ConfigPath)
 	connStr := fmt.Sprintf("host=%s user=%s password=%s port=%d sslmode=disable TimeZone=Asia/Tehran",
 		cfg.DatabaseConfig.Host, cfg.DatabaseConfig.Username, cfg.DatabaseConfig.Password, cfg.DatabaseConfig.Port)
-	db, err := gorm.Open(postgres.Open(connStr), &gorm.Config{})
+	var err error
+	db, err = gorm.Open(postgres.Open(connStr), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database") //TODO: study about panic
 	}
@@ -30,7 +35,6 @@ func DbConnect() *gorm.DB {
 		isInitialized = true
 		migrate(db)
 	}
-
 	return db
 }
 
