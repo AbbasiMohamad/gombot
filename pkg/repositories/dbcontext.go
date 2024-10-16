@@ -6,6 +6,7 @@ import (
 	"gombot/pkg/entities"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"log"
 )
 
@@ -26,7 +27,9 @@ func DbConnect() *gorm.DB {
 	connStr := fmt.Sprintf("host=%s user=%s password=%s port=%d sslmode=disable TimeZone=Asia/Tehran",
 		cfg.DatabaseConfig.Host, cfg.DatabaseConfig.Username, cfg.DatabaseConfig.Password, cfg.DatabaseConfig.Port)
 	var err error
-	db, err = gorm.Open(postgres.Open(connStr), &gorm.Config{})
+	db, err = gorm.Open(postgres.Open(connStr), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		panic("failed to connect database") //TODO: study about panic
 	}
@@ -40,7 +43,7 @@ func DbConnect() *gorm.DB {
 
 func migrate(db *gorm.DB) {
 	err := db.AutoMigrate(&entities.Job{}, &entities.Application{},
-		&entities.Approver{}, &entities.Requester{})
+		&entities.Approver{}, &entities.Requester{}, &entities.Pipeline{})
 	if err != nil {
 		log.Panicf("can not migrate entities. there is error %v", err) // TODO: log.Panicf() vs. Panic()
 	}

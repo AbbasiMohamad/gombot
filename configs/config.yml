@@ -1,4 +1,5 @@
 version: v0.0.1
+
 database:
   host: localhost
   username: gombot
@@ -6,42 +7,42 @@ database:
   dbname: gombot # TODO: it seems dbname dose not support in pg connection string
   port: 5432
   needMigration: true
+
 requesters:
   - abbasi_mohamad
   - almasi_bi
   - afshin990karimi
+
 approvers:
   - fullName: "محمد عباسی"
     username: abbasi_mohamad
-  - fullName: "امیر الماسی"
-    username: almasi_bi
-rollback_permission:
-  - alaki
-# need to restart after change
-token: ""
-microservices:
+
+
+baleToken: "2120196445:Qi8AHAbdMeUR7O6zZRf5relALw32HKOThZlZmrtP" # need to restart after change
+gitlabToken: "glpat-RUS-PaP1NdoHYyKF4aqj"
+
+applications:
   - name: "import"
-    gitlab_url: "https://code.irica.ir"
     branch: "rc"
     needToApprove: true
     persianName: "واردات"
   - name: "financial"
-    gitlab_url: "https://code.irica.ir"
     branch: "rc"
     needToApprove: true
     persianName: "مالی"
   - name: "gate"
-    gitlab_url: "https://code.irica.ir"
     branch: "rc"
     needToApprove: true
     persianName: "درب خروج"
   - name: "mdm"
-    gitlab_url: "https://code.irica.ir"
     branch: "rc"
     needToApprove: true
     persianName: "اطلاعات پایه"
   - name: "component"
-    gitlab_url: "https://code.irica.ir"
     branch: "rc"
     needToApprove: false
     persianName: "کامپوننت های پایه"
+  - name: "my-project"
+    branch: "master"
+    needToApprove: false
+    persianName: "گمبات"

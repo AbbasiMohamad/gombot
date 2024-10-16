@@ -16,7 +16,7 @@ func GetJobByMessageId(messageId int) *entities.Job {
 	db = DbConnect()
 	var job *entities.Job
 	db.Preload("Applications").Preload("Approvers").
-		Preload("Requester").First(&job, "message_id = ?", messageId)
+		Preload("Requester").First(&job, "request_message_id = ?", messageId)
 	return job
 }
 
@@ -45,7 +45,7 @@ func UpdateJob(job *entities.Job) {
 
 		// Now update the Application
 		for _, app := range job.Applications {
-			if err := tx.Model(&entities.Application{}).Where("id = ?", app.ID).Updates(app).Error; err != nil { //TODO: investigate this syntax
+			if err := tx.Model(&entities.Application{}).Where("id = ?", app.ID).Updates(app).Error; err != nil {
 				return err
 			}
 		}

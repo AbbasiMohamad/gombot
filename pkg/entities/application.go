@@ -1,26 +1,36 @@
 package entities
 
+import "time"
+
 type Application struct {
+	ID              uint
+	JobID           uint
+	Name            string
+	PersianName     string
+	Status          ApplicationStatus
+	GitlabUrl       string
+	Branch          string
+	NeedToApprove   bool
+	Pipeline        Pipeline
+	GitlabProjectID int
+}
+
+type Pipeline struct {
 	ID            uint
-	JobID         uint
-	Name          string
-	PersianName   string
-	Status        ApplicationStatus
-	GitlabUrl     string
-	Branch        string
-	NeedToApprove bool
+	ApplicationID uint
+	PipelineID    int
+	Status        string
+	Ref           string
+	WebURL        string
+	CreatedAt     time.Time
 }
 
 type ApplicationStatus string // TODO: GPT this statement
 
 const (
-	Declared ApplicationStatus = "declared"
-	Pending  ApplicationStatus = "pending"
-	//Approved     ApplicationStatus = "approved"
-	//InProgress   ApplicationStatus = "inprogress"
-	BuildFailed ApplicationStatus = "buildfailed"
-	//Built        ApplicationStatus = "built"
-	DeployFailed ApplicationStatus = "deployfailed"
-	Deployed     ApplicationStatus = "deployed"
-	//Canceled     ApplicationStatus = "canceled"
+	Declared   ApplicationStatus = "declared"
+	Pending    ApplicationStatus = "pending"
+	Processing ApplicationStatus = "processing"
+	Failed     ApplicationStatus = "deployfailed"
+	Deployed   ApplicationStatus = "deployed"
 )

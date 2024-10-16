@@ -44,8 +44,8 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if len(applicationNames) > 0 {
 		for _, application := range applicationNames {
 			application = strings.ToLower(application)
-			if validateMicroserviceIsExist(application, config.Microservices) {
-				appConfig, err := getMicroserviceConfig(application, config.Microservices)
+			if validateMicroserviceIsExist(application, config.Applications) {
+				appConfig, err := getMicroserviceConfig(application, config.Applications)
 				if err != nil {
 					log.Printf("there is dangrouse error") // TODO: fix that
 				}
@@ -54,6 +54,7 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 					PersianName:   appConfig.PersianName,
 					NeedToApprove: appConfig.NeedToApprove,
 					Status:        entities.Declared,
+					Branch:        appConfig.Branch,
 				}
 				applications = append(applications, app)
 			}
@@ -87,9 +88,7 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		CreatedAt:    time.Now(),
 	}
 	// need to be approve
-	if repositories.InsertJob(&job) > 0 {
-		entities.PushToQueue(&job)
-	}
+	repositories.InsertJob(&job)
 
 }
 
@@ -108,7 +107,7 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 					job.Approvers[i].IsApproved = true
 				}
 			}
-			message = makeMessageForApprove(*job)
+			message = makeRequestMessageContent(*job)
 			allApproved := true
 			for _, approver := range job.Approvers {
 				if !approver.IsApproved {
@@ -157,7 +156,7 @@ func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Updat
 
 // TODO: use pointer?!
 func SendMessageForApprove(job entities.Job, ctx context.Context, b *bot.Bot) int {
-	message := makeMessageForApprove(job)
+	message := makeRequestMessageContent(job)
 	msg := SendMessageWithInlineKeyboardMarkup(b, ctx, job.ChatId, message)
 	return msg.ID
 }
@@ -213,7 +212,7 @@ func checkAccessToDoUpdate(requester string) bool {
 	return false
 }
 
-func validateMicroserviceIsExist(s string, microservices []configs.Microservice) bool {
+func validateMicroserviceIsExist(s string, microservices []configs.Application) bool {
 	for _, item := range microservices {
 		if item.Name == s {
 			return true
@@ -221,18 +220,18 @@ func validateMicroserviceIsExist(s string, microservices []configs.Microservice)
 	}
 	return false
 }
-func getMicroserviceConfig(s string, microservices []configs.Microservice) (configs.Microservice, error) {
+func getMicroserviceConfig(s string, microservices []configs.Application) (configs.Application, error) {
 	for _, item := range microservices {
 		if item.Name == s {
 			return item, nil
 		}
 	}
-	return configs.Microservice{}, errors.New("there is no any corresponding microservice config")
+	return configs.Application{}, errors.New("there is no any corresponding microservice config")
 }
-func makeMessageForApprove(job entities.Job) string {
+func makeRequestMessageContent(job entities.Job) string {
 	sb := strings.Builder{}
 	year, month, day := job.CreatedAt.Date()
-	sb.WriteString(fmt.Sprintf("✉️ *اعلان درخواست نسخه‌گذاری در تاریخ %v/%v/%v*", year, month, day))
+	sb.WriteString(fmt.Sprintf("✉️ *اعلان درخواست نسخه‌گذاری در تاریخ %v/%v/%v*", month, year, day))
 	sb.WriteString("\n\n")
 	sb.WriteString(fmt.Sprintf("بدینوسیله اطلاع داده می‌شود که آقای *%s*(@%s) درخواستِ آپدیت برای ماژول‌(های) زیر را دارد.", job.Requester.FullName, job.Requester.Username))
 	sb.WriteString("\n\n")
@@ -242,7 +241,14 @@ func makeMessageForApprove(job entities.Job) string {
 	}
 
 	sb.WriteString("\n\n")
-	sb.WriteString("▫️وضعیت درخواست: *در انتظار تایید*\n")
+	for _, approver := range job.Approvers {
+		if approver.IsApproved {
+			sb.WriteString("▫️وضعیت درخواست: *تایید شده*\n")
+		} else {
+			sb.WriteString("▫️وضعیت درخواست: *در انتظار تایید*\n")
+		}
+	}
+
 	sb.WriteString("▫️لیست تایید کنندگان مجاز:\n")
 
 	for _, approver := range job.Approvers {
@@ -255,6 +261,6 @@ func makeMessageForApprove(job entities.Job) string {
 	sb.WriteString("\n")
 	sb.WriteString("\n---------------------------------------------------------------------\n")
 	sb.WriteString("▫️ برای کنسل کردن درخواست دستور زیر را وارد کنید:\n")
-	sb.WriteString(fmt.Sprintf("/cancel  %s", job.JobId))
+	sb.WriteString(fmt.Sprintf("/cancel  %d", job.ID))
 	return sb.String()
 }

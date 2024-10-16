@@ -12,8 +12,9 @@ type Config struct {
 	Version        string         `yaml:"version"`
 	Requesters     []string       `yaml:"requesters"`
 	Approvers      []Approvers    `yaml:"approvers"`
-	Token          string         `yaml:"token"`
-	Microservices  []Microservice `yaml:"microservices"`
+	BaleToken      string         `yaml:"baleToken"`
+	GitlabToken    string         `yaml:"gitlabToken"`
+	Applications   []Application  `yaml:"applications"`
 	DatabaseConfig DatabaseConfig `yaml:"database"`
 }
 
@@ -22,7 +23,7 @@ type Approvers struct {
 	Username string `yaml:"username"`
 }
 
-type Microservice struct {
+type Application struct {
 	Name          string `yaml:"name"`
 	PersianName   string `yaml:"persianName"`
 	GitlabUrl     string `yaml:"gitlab_url"`
