@@ -19,6 +19,7 @@ const (
 	None           JobStatus = "NONE"
 )
 
+// Job is representation of a request of update. Job must execute serially but Application of it must run parallel.
 type Job struct {
 	ID               uint
 	ChatId           int64
@@ -27,7 +28,7 @@ type Job struct {
 	Applications     []Application
 	Approvers        []Approver
 	Requester        *Requester
-	Status           JobStatus
+	Status           JobStatus // TODO: make this isolate
 	CreatedAt        time.Time
 }
 
@@ -47,12 +48,20 @@ func CreateJob(p parameters.CreateJobParameters) (Job, error) {
 // updateJobStatus update status of Job based on job's circumstances.
 // returns None if Applications, Approvers, or Requester be nil.
 // returns Requested if Applications, Approvers, and Requester have valid data.
+// returns NeedToApproved if Status is Requested and RequestMessageID has a content.
+// returns Confirmed if Status is NeedToApproved and all approvers approved.
 func (j *Job) updateJobStatus() {
 	if j.Applications == nil || j.Approvers == nil || j.Requester == nil {
 		j.Status = None
 	}
 	if j.Applications != nil || j.Approvers != nil || j.Requester != nil {
 		j.Status = Requested
+	}
+	if j.RequestMessageID > 0 && j.Status == Requested {
+		j.Status = NeedToApproved
+	}
+	if j.checkAllApproversApproved() && j.Status == NeedToApproved {
+		j.Status = Confirmed
 	}
 }
 
@@ -81,4 +90,43 @@ func (j *Job) AddRequester(requester *Requester) error {
 	j.Requester = requester
 	j.updateJobStatus()
 	return nil
+}
+
+// SetRequestMessageID make job status to NeedToApproved.
+func (j *Job) SetRequestMessageID(messageId int) error {
+	if j.Status != Requested {
+		return errors.New("job status is invalid for operation named 'SetRequestMessageID'")
+	}
+	j.RequestMessageID = messageId
+	j.updateJobStatus()
+	for i := range j.Applications {
+		j.Applications[i].SetStatusToPending()
+	}
+	return nil
+}
+
+// SetApproverResponse can make job status to Confirmed.
+func (j *Job) SetApproverResponse(username string) error {
+	if j.Status != NeedToApproved {
+		return errors.New("job status is invalid for operation named 'SetApproverResponse'")
+	}
+	for i := range j.Approvers {
+		if j.Approvers[i].Username == username {
+			j.Approvers[i].IsApproved = true
+			return nil
+		}
+	}
+	j.updateJobStatus()
+	return errors.New("approver is not found")
+}
+
+func (j *Job) checkAllApproversApproved() bool {
+	allApproved := true
+	for _, approver := range j.Approvers {
+		if !approver.IsApproved {
+			allApproved = false
+			break
+		}
+	}
+	return allApproved
 }

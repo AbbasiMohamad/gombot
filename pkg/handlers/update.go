@@ -14,7 +14,8 @@ import (
 	"strings"
 )
 
-// UpdateHandler checks corresponding permissions and validations and finally creates Job object with status 'requested'
+// UpdateHandler checks corresponding permissions and validations and finally creates Job object with status 'requested' and
+// Application's status 'pending'
 func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	var message string
 
@@ -40,7 +41,6 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	applications := createApplicationsBasedOnUserInputAndConfigurations(userInputApplicationNames)
 
-	// validate application exists or not
 	if len(applications) == 0 || applications == nil {
 		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
 		if _, err := SendMessage(b, ctx, update.Message.Chat.ID, message); err != nil {
@@ -49,7 +49,6 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	// create Job object
 	job, err := createJobWithCorrespondingApproversAndRequester(update, applications)
 	if err != nil {
 		if _, sendError := SendMessage(b, ctx, update.Message.Chat.ID, err.Error()); sendError != nil {
@@ -58,82 +57,39 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		log.Printf("failed to create job: %v", err)
 	}
 
-	// save job in database
 	repositories.InsertJob(&job)
 }
 
+// UpdateCallbackHandler checks corresponding permissions and finally make status entities.Confirmed.
 func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	var message string
-	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-		CallbackQueryID: update.CallbackQuery.ID,
-		ShowAlert:       true,
-	})
 	isAuthorized := checkAccessToDoApprove(update.CallbackQuery.From.Username)
-	if isAuthorized {
-		job := repositories.GetJobByMessageId(update.CallbackQuery.Message.Message.ID)
-		if job.ChatId == update.CallbackQuery.Message.Message.Chat.ID {
-			for i, _ := range job.Approvers {
-				if job.Approvers[i].Username == update.CallbackQuery.From.Username {
-					job.Approvers[i].IsApproved = true
-				}
-			}
-			message = makeRequestMessageContent(*job)
-			allApproved := true
-			for _, approver := range job.Approvers {
-				if !approver.IsApproved {
-					allApproved = false
-				}
-			}
-
-			if allApproved {
-				job.Status = entities.Confirmed
-				b.EditMessageText(ctx, &bot.EditMessageTextParams{
-					ChatID:    update.CallbackQuery.Message.Message.Chat.ID,
-					MessageID: update.CallbackQuery.Message.Message.ID,
-					Text:      message,
-				})
-				//repositories.UpdateJob(job)
-			} else {
-				kb := &models.InlineKeyboardMarkup{
-					InlineKeyboard: [][]models.InlineKeyboardButton{
-						{
-							{Text: "تایید نسخه گذاری", CallbackData: "confirm"},
-						},
-					},
-				}
-				b.EditMessageText(ctx, &bot.EditMessageTextParams{
-					ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
-					MessageID:   update.CallbackQuery.Message.Message.ID,
-					Text:        message,
-					ReplyMarkup: kb,
-				})
-				//repositories.UpdateJob(job)
-			}
-
-			repositories.UpdateJob(job)
-
-		}
-
-	} else {
-		message = "You are not authorized to perform this action."
-		b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.CallbackQuery.Message.Message.Chat.ID,
-			Text:   message,
-		})
+	if !isAuthorized {
+		return
 	}
 
-}
+	job := repositories.GetJobByMessageId(update.CallbackQuery.Message.Message.ID)
+	if job.ChatId != update.CallbackQuery.Message.Message.Chat.ID {
+		log.Printf("there is a big problem in GetJobByMessageId query.")
+		return
+	}
 
-// TODO: use pointer?!
-func SendMessageForApprove(job entities.Job, ctx context.Context, b *bot.Bot) int {
-	message := makeRequestMessageContent(job)
-	msg := SendMessageWithInlineKeyboardMarkup(b, ctx, job.ChatId, message)
-	return msg.ID
+	err := job.SetApproverResponse(update.CallbackQuery.From.Username)
+	if err != nil {
+		log.Printf("failed to set approver response: %v", err)
+	}
+
+	message := MakeRequestMessageContent(job)
+
+	if job.Status == entities.Confirmed {
+		EditMessage(b, ctx, update.CallbackQuery.Message.Message.Chat.ID, message, update.CallbackQuery.Message.Message.ID)
+	} else {
+		EditMessageWithInlineKeyboardMarkup(b, ctx, update.CallbackQuery.Message.Message.Chat.ID, message, update.CallbackQuery.Message.Message.ID)
+	}
+	repositories.UpdateJob(job)
 }
 
 func checkAccessToDoApprove(approver string) bool {
 	config := configs.LoadConfig(configs.ConfigPath)
-
 	for _, authenticApprover := range config.Approvers {
 		if approver == authenticApprover.Username {
 			return true
@@ -190,43 +146,6 @@ func getMicroserviceConfig(s string, microservices []configs.Application) (confi
 		}
 	}
 	return configs.Application{}, errors.New("there is no any corresponding microservice config")
-}
-
-func makeRequestMessageContent(job entities.Job) string {
-	sb := strings.Builder{}
-	year, month, day := job.CreatedAt.Date()
-	sb.WriteString(fmt.Sprintf("✉️ *اعلان درخواست نسخه‌گذاری در تاریخ %v/%v/%v*", month, year, day))
-	sb.WriteString("\n\n")
-	sb.WriteString(fmt.Sprintf("بدینوسیله اطلاع داده می‌شود که آقای *%s*(@%s) درخواستِ آپدیت برای ماژول‌(های) زیر را دارد.", job.Requester.FullName, job.Requester.Username))
-	sb.WriteString("\n\n")
-
-	for _, application := range job.Applications {
-		sb.WriteString(fmt.Sprintf("▪ *%s* (%s) \n", application.PersianName, application.Name))
-	}
-
-	sb.WriteString("\n\n")
-	for _, approver := range job.Approvers {
-		if approver.IsApproved {
-			sb.WriteString("▫️وضعیت درخواست: *تایید شده*\n")
-		} else {
-			sb.WriteString("▫️وضعیت درخواست: *در انتظار تایید*\n")
-		}
-	}
-
-	sb.WriteString("▫️لیست تایید کنندگان مجاز:\n")
-
-	for _, approver := range job.Approvers {
-		if approver.IsApproved {
-			sb.WriteString(fmt.Sprintf("▪️آقای *%s* (@%s) | وضعیت: *تایید* 🟢\n", approver.FullName, approver.Username))
-		} else {
-			sb.WriteString(fmt.Sprintf("▪️آقای *%s* (@%s) | وضعیت: *عدم تایید* ⚪\n", approver.FullName, approver.Username))
-		}
-	}
-	sb.WriteString("\n")
-	sb.WriteString("\n---------------------------------------------------------------------\n")
-	sb.WriteString("▫️ برای کنسل کردن درخواست دستور زیر را وارد کنید:\n")
-	sb.WriteString(fmt.Sprintf("/cancel  %d", job.ID))
-	return sb.String()
 }
 
 // create application entities with status declared based on microservice configuration

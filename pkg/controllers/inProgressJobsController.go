@@ -32,7 +32,7 @@ func ExecuteMonitoringOfInProgressJobs(ctx context.Context, b *bot.Bot) {
 }
 
 func updatePipelinesStatus(job *entities.Job) {
-	for i, _ := range job.Applications {
+	for i := range job.Applications {
 		pipeline := repositories.GetPipeline(job.Applications[i].GitlabProjectID, job.Applications[i].Pipeline.PipelineID)
 		if pipeline == nil {
 			log.Printf("there is a error to get pipeline for '%s' application", job.Applications[i].Name)

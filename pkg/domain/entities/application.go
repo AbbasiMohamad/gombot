@@ -45,3 +45,7 @@ func CreateApplication(p parameters.CreateApplicationParameters) (Application, e
 	log.Printf("created application named '%s' and make its status '%s' ", app.Name, app.Status)
 	return app, nil
 }
+
+func (a *Application) SetStatusToPending() {
+	a.Status = Pending
+}

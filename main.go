@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/go-telegram/bot"
 	"gombot/pkg/configs"
+	"gombot/pkg/controllers"
 	"gombot/pkg/handlers"
 	"log"
 	"os"
@@ -27,6 +28,7 @@ postgres run command: docker run --name postgres -e POSTGRES_USER=gombot -e POST
 + make SendMessage in handler unreachable for outside of package
 + deploy jobs without approve for applications that needToApprove is false
 + gorm dose not support to migrate private fields. think about how to isolate important fields
++ TODO: what if requester send message privately? its a dangerous bug
 */
 
 func main() {
@@ -38,7 +40,7 @@ func main() {
 	opts := []bot.Option{
 		bot.WithServerURL("https://tapi.bale.ai"),
 		bot.WithDefaultHandler(handlers.DefaultHandler),
-		//bot.WithCallbackQueryDataHandler("confirm", bot.MatchTypeExact, handlers.UpdateCallbackHandler),
+		bot.WithCallbackQueryDataHandler("confirm", bot.MatchTypeExact, handlers.UpdateCallbackHandler),
 	}
 
 	b, err := bot.New(config.BaleToken, opts...)
@@ -51,12 +53,12 @@ func main() {
 	/*b.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, handlers.HelpHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/status", bot.MatchTypePrefix, handlers.StatusHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/test", bot.MatchTypePrefix, handlers.TestHandler)
-
-	go controllers.ExecuteMonitoringOfRequestedJobs(ctx, b)
-	go controllers.ExecuteMonitoringOfApprovedJobs(ctx, b)
-	go controllers.ExecuteMonitoringOfDoneJobs(ctx, b)
-	go controllers.ExecuteMonitoringOfInProgressJobs(ctx, b)
 	*/
+	go controllers.ExecuteMonitoringOfRequestedJobs(ctx, b)
+	//go controllers.ExecuteMonitoringOfApprovedJobs(ctx, b)
+	//go controllers.ExecuteMonitoringOfDoneJobs(ctx, b)
+	//go controllers.ExecuteMonitoringOfInProgressJobs(ctx, b)
+
 	log.Println("Bot is now running.  Press CTRL-C to exit.")
 	b.Start(ctx)
 }

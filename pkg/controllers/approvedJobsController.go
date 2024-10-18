@@ -34,7 +34,7 @@ func ExecuteMonitoringOfApprovedJobs(ctx context.Context, b *bot.Bot) {
 			}
 			break
 		case entities.Done:
-			handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد"+"  "+job.JobId.String())
+			handlers.SendMessage(b, ctx, job.ChatId, "دیپلوی با موفقیت انجام شد"+"  ")
 			job.Status = entities.Finished
 			if err != nil {
 				log.Println("trying to dequeue from empty queue")
@@ -48,9 +48,10 @@ func ExecuteMonitoringOfApprovedJobs(ctx context.Context, b *bot.Bot) {
 	}
 }
 
-func doSomething(job *entities.Job) { //TODO: make a meaningful name
+// TODO: make a meaningful name
+func doSomething(job *entities.Job) {
 	// match information from gitlab to applications
-	for i, _ := range job.Applications {
+	for i := range job.Applications {
 		job.Applications[i].Status = entities.Processing
 		gitlabProject := repositories.GetProjectByApplicationName(job.Applications[i].Name)
 		if gitlabProject == nil {
@@ -64,7 +65,7 @@ func doSomething(job *entities.Job) { //TODO: make a meaningful name
 	// iterate on application and create pipeline with 3 retry
 	retry := 3
 	for retry > 0 {
-		for i, _ := range job.Applications {
+		for i := range job.Applications {
 			pipeline := repositories.CreatePipeline(job.Applications[i].GitlabProjectID, job.Applications[i].Branch)
 			if pipeline == nil {
 				retry--
