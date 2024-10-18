@@ -8,7 +8,8 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/google/uuid"
 	"gombot/pkg/configs"
-	"gombot/pkg/entities"
+	"gombot/pkg/domain/dtos"
+	"gombot/pkg/domain/entities"
 	"gombot/pkg/repositories"
 	"log"
 	"strings"
@@ -16,21 +17,26 @@ import (
 )
 
 func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-
 	var message string
-	// check username existance
-	if update.Message.From.Username == "" {
-		message = "برای استفاده از بات لازم است نام کاربری داشته باشید"
-		SendMessage(b, ctx, update.Message.Chat.ID, message)
+	// validations
+	// parse command
+	// call update service
+
+	hasUsername := checkUserHasBaleUsername(update.Message.From.Username)
+	if !hasUsername {
+		message = "*بمنظور درخواست آپدیت باید اکانت بله دارای نام کاربری باشد.*"
+		if _, err := SendMessage(b, ctx, update.Message.Chat.ID, message); err != nil {
+			log.Printf("failed to send message: %v", err)
+		}
 		return
 	}
 
 	isAuthorized := checkAccessToDoUpdate(update.Message.From.Username)
 	if !isAuthorized {
-		log.Printf("user try to update command failed, because of lack of permission. (user_id:%d|user_fullname:%s)",
-			update.Message.From.ID, update.Message.From.FirstName+update.Message.From.LastName) // TODO: is it required?
 		message = fmt.Sprintf("شما (%s %s) دسترسی درخواست نخسه گذاری ندارید", update.Message.From.FirstName, update.Message.From.LastName)
-		SendMessage(b, ctx, update.Message.Chat.ID, message)
+		if _, err := SendMessage(b, ctx, update.Message.Chat.ID, message); err != nil {
+			log.Printf("failed to send message: %v", err)
+		}
 		return
 	}
 
@@ -49,13 +55,19 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 				if err != nil {
 					log.Printf("there is dangrouse error") // TODO: fix that
 				}
-				app := entities.Application{
+				/*app := entities.Application{
 					Name:          application,
 					PersianName:   appConfig.PersianName,
 					NeedToApprove: appConfig.NeedToApprove,
 					Status:        entities.Declared,
 					Branch:        appConfig.Branch,
-				}
+				}*/
+				app := entities.CreateApplication(dtos.CreateApplicationDto{
+					Name:          application,
+					PersianName:   appConfig.PersianName,
+					NeedToApprove: appConfig.NeedToApprove,
+					Branch:        appConfig.Branch,
+				})
 				applications = append(applications, app)
 			}
 		}
@@ -63,7 +75,9 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 
 	if len(applications) == 0 || applications == nil {
 		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
-		SendMessage(b, ctx, update.Message.Chat.ID, message)
+		if _, err := SendMessage(b, ctx, update.Message.Chat.ID, message); err != nil {
+			log.Printf("failed to send message: %v", err)
+		}
 		return
 	}
 

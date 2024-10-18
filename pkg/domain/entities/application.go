@@ -1,18 +1,21 @@
 package entities
 
-import "time"
+import (
+	"gombot/pkg/domain/dtos"
+	"time"
+)
 
 type Application struct {
 	ID              uint
 	JobID           uint
 	Name            string
 	PersianName     string
-	Status          ApplicationStatus
 	GitlabUrl       string
+	GitlabProjectID int
 	Branch          string
 	NeedToApprove   bool
+	status          ApplicationStatus
 	Pipeline        Pipeline
-	GitlabProjectID int
 }
 
 type Pipeline struct {
@@ -23,6 +26,11 @@ type Pipeline struct {
 	Ref           string
 	WebURL        string
 	CreatedAt     time.Time
+	FinishedAt    time.Time
+}
+
+func CreateApplication(appDto dtos.CreateApplicationDto) Application {
+	return Application{}
 }
 
 type ApplicationStatus string // TODO: GPT this statement
@@ -31,6 +39,6 @@ const (
 	Declared   ApplicationStatus = "declared"
 	Pending    ApplicationStatus = "pending"
 	Processing ApplicationStatus = "processing"
-	Failed     ApplicationStatus = "deployfailed"
+	Failed     ApplicationStatus = "failed"
 	Deployed   ApplicationStatus = "deployed"
 )

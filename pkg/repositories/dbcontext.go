@@ -3,7 +3,7 @@ package repositories
 import (
 	"fmt"
 	"gombot/pkg/configs"
-	"gombot/pkg/entities"
+	"gombot/pkg/domain/entities"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -45,7 +45,7 @@ func migrate(db *gorm.DB) {
 	err := db.AutoMigrate(&entities.Job{}, &entities.Application{},
 		&entities.Approver{}, &entities.Requester{}, &entities.Pipeline{})
 	if err != nil {
-		log.Panicf("can not migrate entities. there is error %v", err) // TODO: log.Panicf() vs. Panic()
+		log.Panicf("can not migrate domain. there is error %v", err) // TODO: log.Panicf() vs. Panic()
 	}
 }
 

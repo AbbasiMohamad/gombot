@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"errors"
-	"gombot/pkg/entities"
+	"gombot/pkg/domain/entities"
 	"gorm.io/gorm"
 )
 
@@ -52,7 +52,10 @@ func UpdateJob(job *entities.Job) {
 
 		return nil
 	})
+}
 
+func NewUpdateJob(job *entities.Job) {
+	db.Session(&gorm.Session{FullSaveAssociations: true}).Save(&job)
 }
 
 func GetFirstApprovedJob() (*entities.Job, error) {
@@ -73,6 +76,42 @@ func GetFirstApprovedJob() (*entities.Job, error) {
 	}
 
 	return job, nil
+}
+
+func GetFirstInProgressJob() (*entities.Job, error) {
+	db = DbConnect()
+	var job *entities.Job
+	result := db.Preload("Applications").Preload("Applications.Pipeline").
+		Preload("Approvers").
+		Preload("Requester").
+		Where("status = ?", entities.InProgress).
+		Order("created_at").First(&job)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New("there is no in progress job in the database")
+		}
+		return nil, result.Error
+	}
+
+	return job, nil
+}
+
+func GetApplicationById(id uint) (*entities.Application, error) {
+	db = DbConnect()
+	var app *entities.Application
+	result := db.Preload("Pipeline").
+		Where("id = ?", id).
+		First(&app)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, errors.New("there is no in progress job in the database")
+		}
+		return nil, result.Error
+	}
+
+	return app, nil
 }
 
 func GetFirstDoneJob() (*entities.Job, error) {

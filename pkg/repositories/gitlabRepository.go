@@ -46,3 +46,12 @@ func CreatePipeline(projectId int, ref string) *gitlab.Pipeline {
 	}
 	return pipeline
 }
+
+func GetPipeline(projectId int, pipelineId int) *gitlab.Pipeline {
+	git = getGitlabClient()
+	pipeline, _, err := git.Pipelines.GetPipeline(projectId, pipelineId, nil)
+	if err != nil {
+		log.Printf("can not get pipeline, %v", err)
+	}
+	return pipeline
+}
