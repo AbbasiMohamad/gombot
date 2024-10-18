@@ -20,10 +20,11 @@ func ExecuteMonitoringOfInProgressJobs(ctx context.Context, b *bot.Bot) {
 
 		switch job.Status {
 		case entities.InProgress:
+
 			// check pipelines status and update message
 			sleep()
 			updatePipelinesStatus(job)
-			handlers.EditMessage(b, ctx, job.ChatId, MakeStatusMessageContent(job), job.StatusMessageID)
+			handlers.EditMessage(b, ctx, job.ChatId, handlers.MakeStatusMessageContent(job), job.StatusMessageID)
 			updateJobStatus(job)
 			sleep()
 		}
@@ -53,7 +54,7 @@ func updatePipelinesStatus(job *entities.Job) {
 		default:
 			job.Applications[i].Status = entities.Processing
 		}
-		repositories.NewUpdateJob(job)
+		repositories.UpdateJob(job)
 	}
 }
 
@@ -68,6 +69,6 @@ func updateJobStatus(job *entities.Job) {
 	}
 	if isJobFinished {
 		job.Status = entities.Done
-		repositories.NewUpdateJob(job)
+		repositories.UpdateJob(job)
 	}
 }

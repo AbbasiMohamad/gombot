@@ -55,7 +55,7 @@ func main() {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/test", bot.MatchTypePrefix, handlers.TestHandler)
 	*/
 	go controllers.ExecuteMonitoringOfRequestedJobs(ctx, b)
-	//go controllers.ExecuteMonitoringOfApprovedJobs(ctx, b)
+	go controllers.ExecuteMonitoringOfConfirmedJobs(ctx, b)
 	//go controllers.ExecuteMonitoringOfDoneJobs(ctx, b)
 	//go controllers.ExecuteMonitoringOfInProgressJobs(ctx, b)
 

@@ -50,6 +50,7 @@ func CreateJob(p parameters.CreateJobParameters) (Job, error) {
 // returns Requested if Applications, Approvers, and Requester have valid data.
 // returns NeedToApproved if Status is Requested and RequestMessageID has a content.
 // returns Confirmed if Status is NeedToApproved and all approvers approved.
+// returns InProgress if Status is Confirmed and StatusMessageID has a content.
 func (j *Job) updateJobStatus() {
 	if j.Applications == nil || j.Approvers == nil || j.Requester == nil {
 		j.Status = None
@@ -62,6 +63,9 @@ func (j *Job) updateJobStatus() {
 	}
 	if j.checkAllApproversApproved() && j.Status == NeedToApproved {
 		j.Status = Confirmed
+	}
+	if j.StatusMessageID > 0 && j.Status == Confirmed {
+		j.Status = InProgress
 	}
 }
 
@@ -129,4 +133,17 @@ func (j *Job) checkAllApproversApproved() bool {
 		}
 	}
 	return allApproved
+}
+
+// SetStatusMessageID make job status to InProgress.
+func (j *Job) SetStatusMessageID(messageId int) error {
+	if j.Status != Confirmed {
+		return errors.New("job status is invalid for operation named 'SetStatusMessageID'")
+	}
+	j.StatusMessageID = messageId
+	j.updateJobStatus()
+	for i := range j.Applications {
+		j.Applications[i].SetStatusToProcessing()
+	}
+	return nil
 }

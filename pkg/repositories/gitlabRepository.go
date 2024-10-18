@@ -22,7 +22,7 @@ func getGitlabClient() *gitlab.Client {
 	return git
 }
 
-func GetProjectByApplicationName(applicationName string) *gitlab.Project { //TODO create DTO for data transfers
+func GetGitlabProjectByApplicationName(applicationName string) *gitlab.Project { //TODO create DTO for data transfers
 	git = getGitlabClient()
 	projects, _, _ := git.Projects.ListProjects(&gitlab.ListProjectsOptions{
 		Membership: gitlab.Ptr(true), // TODO: read about that:https://stackoverflow.com/questions/28817992/how-to-set-bool-pointer-to-true-in-struct-literal ( gitlab.Ptr() )

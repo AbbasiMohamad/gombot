@@ -26,7 +26,7 @@ type Application struct {
 	Branch          string
 	NeedToApprove   bool
 	Status          ApplicationStatus
-	Pipeline        Pipeline
+	Pipeline        *Pipeline
 }
 
 // CreateApplication creates new Application with status Declared or return error
@@ -48,4 +48,20 @@ func CreateApplication(p parameters.CreateApplicationParameters) (Application, e
 
 func (a *Application) SetStatusToPending() {
 	a.Status = Pending
+}
+
+func (a *Application) SetStatusToProcessing() {
+	a.Status = Processing
+}
+
+func (a *Application) SetStatusToFailed() {
+	a.Status = Failed
+}
+
+func (a *Application) AddPipeline(p *Pipeline) error {
+	if p == nil {
+		return errors.New("nil pipeline can not be added")
+	}
+	a.Pipeline = p
+	return nil
 }

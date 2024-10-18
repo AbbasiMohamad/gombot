@@ -28,7 +28,7 @@ func GetRequestedJobs() []*entities.Job {
 	return jobs
 }
 
-func UpdateJob(job *entities.Job) {
+func UpdateJobOld(job *entities.Job) {
 	db = DbConnect()
 	db.Transaction(func(tx *gorm.DB) error {
 		// First update the Job
@@ -54,27 +54,25 @@ func UpdateJob(job *entities.Job) {
 	})
 }
 
-func NewUpdateJob(job *entities.Job) {
+func UpdateJob(job *entities.Job) {
 	db.Session(&gorm.Session{FullSaveAssociations: true}).Save(&job)
 }
 
-func GetFirstApprovedJob() (*entities.Job, error) {
+func GetFirstConfirmedJob() (*entities.Job, error) {
 	db = DbConnect()
 	var job *entities.Job
-	// Query the first approved job
 	result := db.Preload("Applications").
 		Preload("Approvers").
 		Preload("Requester").
-		Where("status <= ?", entities.Confirmed).
+		Where("status = ?", entities.Confirmed).
 		Order("created_at").First(&job)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, errors.New("there is no approved job in the database")
 		}
-		return nil, result.Error // Return any other database error
+		return nil, result.Error
 	}
-
 	return job, nil
 }
 
@@ -134,7 +132,7 @@ func GetFirstDoneJob() (*entities.Job, error) {
 	return job, nil
 }
 
-func IsInProgressJob() bool {
+func IsInProgressJobExists() bool {
 	db = DbConnect()
 	var job *entities.Job
 	db.Find(&job, "status = ?", entities.InProgress) // TODO : make query with count
