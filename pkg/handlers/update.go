@@ -6,21 +6,17 @@ import (
 	"fmt"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/google/uuid"
 	"gombot/pkg/configs"
-	"gombot/pkg/domain/dtos"
+	"gombot/pkg/domain/dtos/parameters"
 	"gombot/pkg/domain/entities"
 	"gombot/pkg/repositories"
 	"log"
 	"strings"
-	"time"
 )
 
+// UpdateHandler checks corresponding permissions and validations and finally creates Job object with status 'requested'
 func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	var message string
-	// validations
-	// parse command
-	// call update service
 
 	hasUsername := checkUserHasBaleUsername(update.Message.From.Username)
 	if !hasUsername {
@@ -40,39 +36,11 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	// parse command
-	applicationNames := parseUpdateCommand(update.Message.Text)
+	userInputApplicationNames := parseUpdateCommand(update.Message.Text)
 
-	// validate application existance
-	var applications []entities.Application
-	config := configs.LoadConfig(configs.ConfigPath)
+	applications := createApplicationsBasedOnUserInputAndConfigurations(userInputApplicationNames)
 
-	if len(applicationNames) > 0 {
-		for _, application := range applicationNames {
-			application = strings.ToLower(application)
-			if validateMicroserviceIsExist(application, config.Applications) {
-				appConfig, err := getMicroserviceConfig(application, config.Applications)
-				if err != nil {
-					log.Printf("there is dangrouse error") // TODO: fix that
-				}
-				/*app := entities.Application{
-					Name:          application,
-					PersianName:   appConfig.PersianName,
-					NeedToApprove: appConfig.NeedToApprove,
-					Status:        entities.Declared,
-					Branch:        appConfig.Branch,
-				}*/
-				app := entities.CreateApplication(dtos.CreateApplicationDto{
-					Name:          application,
-					PersianName:   appConfig.PersianName,
-					NeedToApprove: appConfig.NeedToApprove,
-					Branch:        appConfig.Branch,
-				})
-				applications = append(applications, app)
-			}
-		}
-	}
-
+	// validate application exists or not
 	if len(applications) == 0 || applications == nil {
 		message = "اپلیکیشن معتبری برای آپدیت انتخاب نشده است"
 		if _, err := SendMessage(b, ctx, update.Message.Chat.ID, message); err != nil {
@@ -81,29 +49,17 @@ func UpdateHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 		return
 	}
 
-	var approvers []entities.Approver
-	for _, approver := range config.Approvers {
-		approvers = append(approvers, entities.Approver{
-			Username: approver.Username,
-			FullName: approver.FullName,
-		})
+	// create Job object
+	job, err := createJobWithCorrespondingApproversAndRequester(update, applications)
+	if err != nil {
+		if _, sendError := SendMessage(b, ctx, update.Message.Chat.ID, err.Error()); sendError != nil {
+			log.Printf("failed to send message: %v", err)
+		}
+		log.Printf("failed to create job: %v", err)
 	}
-	requester := entities.Requester{
-		Username: update.Message.From.Username,
-		FullName: update.Message.From.FirstName + " " + update.Message.From.LastName,
-	}
-	job := entities.Job{
-		JobId:        uuid.New(),
-		ChatId:       update.Message.Chat.ID,
-		Applications: applications,
-		Status:       entities.Requested,
-		Approvers:    approvers,
-		Requester:    requester,
-		CreatedAt:    time.Now(),
-	}
-	// need to be approve
-	repositories.InsertJob(&job)
 
+	// save job in database
+	repositories.InsertJob(&job)
 }
 
 func UpdateCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -186,6 +142,7 @@ func checkAccessToDoApprove(approver string) bool {
 	return false
 }
 
+// parseUpdateCommand parse user input as /update command
 func parseUpdateCommand(s string) []string {
 	parsedNames := strings.Split(s, "\n")
 	var applications []string
@@ -199,7 +156,7 @@ func parseUpdateCommand(s string) []string {
 			applications = append(applications, name)
 		}
 	}
-	return removeDuplicates(applications)
+	return removeDuplicates(applications[1:])
 }
 
 func removeDuplicates(slice []string) []string {
@@ -226,14 +183,6 @@ func checkAccessToDoUpdate(requester string) bool {
 	return false
 }
 
-func validateMicroserviceIsExist(s string, microservices []configs.Application) bool {
-	for _, item := range microservices {
-		if item.Name == s {
-			return true
-		}
-	}
-	return false
-}
 func getMicroserviceConfig(s string, microservices []configs.Application) (configs.Application, error) {
 	for _, item := range microservices {
 		if item.Name == s {
@@ -242,6 +191,7 @@ func getMicroserviceConfig(s string, microservices []configs.Application) (confi
 	}
 	return configs.Application{}, errors.New("there is no any corresponding microservice config")
 }
+
 func makeRequestMessageContent(job entities.Job) string {
 	sb := strings.Builder{}
 	year, month, day := job.CreatedAt.Date()
@@ -277,4 +227,104 @@ func makeRequestMessageContent(job entities.Job) string {
 	sb.WriteString("▫️ برای کنسل کردن درخواست دستور زیر را وارد کنید:\n")
 	sb.WriteString(fmt.Sprintf("/cancel  %d", job.ID))
 	return sb.String()
+}
+
+// create application entities with status declared based on microservice configuration
+func createApplicationsBasedOnUserInputAndConfigurations(userInputApplicationNames []string) []entities.Application {
+	var applications []entities.Application
+	config := configs.LoadConfig(configs.ConfigPath)
+	if len(userInputApplicationNames) > 0 {
+		for _, application := range userInputApplicationNames {
+			application = strings.ToLower(application)
+			appConfig, err := getMicroserviceConfig(application, config.Applications)
+			if err != nil {
+				log.Printf("there is no any corresponding microservice config for application name '%s'", application)
+				continue
+			}
+			app, err := entities.CreateApplication(parameters.CreateApplicationParameters{
+				Name:          application,
+				PersianName:   appConfig.PersianName,
+				NeedToApprove: appConfig.NeedToApprove,
+				Branch:        appConfig.Branch,
+			})
+			if err != nil {
+				log.Printf(err.Error())
+			} else {
+				applications = append(applications, app)
+			}
+		}
+	}
+	return applications
+}
+
+// create approvers and requester based on configuration and finally create job object with applications
+func createJobWithCorrespondingApproversAndRequester(update *models.Update, applications []entities.Application) (entities.Job, error) {
+
+	approvers, err := createApproversBasedOnConfiguration()
+	if err != nil {
+		return entities.Job{}, err
+	}
+
+	requester, err := createRequesterBasedOnUserMessage(update)
+	if err != nil {
+		return entities.Job{}, err
+	}
+
+	job, err := createJobBasedOnUserMessage(update)
+	if err != nil {
+		return entities.Job{}, err
+	}
+
+	if appErr := job.AddApplications(applications); appErr != nil {
+		return entities.Job{}, appErr
+	}
+
+	if appErr := job.AddApprovers(approvers); appErr != nil {
+		return entities.Job{}, appErr
+	}
+
+	if appErr := job.AddRequester(&requester); appErr != nil {
+		return entities.Job{}, appErr
+	}
+
+	return job, nil
+}
+
+func createApproversBasedOnConfiguration() ([]entities.Approver, error) {
+	config := configs.LoadConfig(configs.ConfigPath)
+	var approvers []entities.Approver
+	for _, approver := range config.Approvers {
+		a, err := entities.CreateApprover(parameters.CreateApproverParameters{
+			Username: approver.Username,
+			FullName: approver.FullName,
+		})
+		if err == nil {
+			approvers = append(approvers, a)
+		}
+	}
+	if len(approvers) == 0 {
+		return []entities.Approver{}, errors.New("there is no any corresponding approvers")
+	}
+	return approvers, nil
+}
+
+func createRequesterBasedOnUserMessage(update *models.Update) (entities.Requester, error) {
+	requester, err := entities.CreateRequester(parameters.CreateRequesterParameters{
+		Username: update.Message.From.Username,
+		FullName: update.Message.From.FirstName + " " + update.Message.From.LastName,
+	})
+	if err != nil {
+		return entities.Requester{}, errors.New("there is no any corresponding requester")
+	}
+	return requester, nil
+}
+
+func createJobBasedOnUserMessage(update *models.Update) (entities.Job, error) {
+	job, err := entities.CreateJob(parameters.CreateJobParameters{
+		ChatId: update.Message.Chat.ID,
+	})
+	if err != nil {
+		return entities.Job{}, err
+	}
+	return job, nil
 }

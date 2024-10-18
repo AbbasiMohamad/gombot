@@ -1,8 +1,19 @@
 package entities
 
 import (
-	"gombot/pkg/domain/dtos"
-	"time"
+	"errors"
+	"gombot/pkg/domain/dtos/parameters"
+	"log"
+)
+
+type ApplicationStatus string // TODO: GPT this statement
+
+const (
+	Declared   ApplicationStatus = "DECLARED"
+	Pending    ApplicationStatus = "PENDING"
+	Processing ApplicationStatus = "PROCESSING"
+	Failed     ApplicationStatus = "FAILED"
+	Deployed   ApplicationStatus = "DEPLOYED"
 )
 
 type Application struct {
@@ -14,31 +25,23 @@ type Application struct {
 	GitlabProjectID int
 	Branch          string
 	NeedToApprove   bool
-	status          ApplicationStatus
+	Status          ApplicationStatus
 	Pipeline        Pipeline
 }
 
-type Pipeline struct {
-	ID            uint
-	ApplicationID uint
-	PipelineID    int
-	Status        string
-	Ref           string
-	WebURL        string
-	CreatedAt     time.Time
-	FinishedAt    time.Time
+// CreateApplication creates new Application with status Declared or return error
+func CreateApplication(p parameters.CreateApplicationParameters) (Application, error) {
+	if p.Name == "" || p.PersianName == "" || p.Branch == "" {
+		log.Printf("can not create application with empty parameters.")
+		return Application{}, errors.New("can not create application with with empty parameters")
+	}
+	app := Application{
+		Name:          p.Name,
+		PersianName:   p.PersianName,
+		Branch:        p.Branch,
+		NeedToApprove: p.NeedToApprove,
+		Status:        Declared,
+	}
+	log.Printf("created application named '%s' and make its status '%s' ", app.Name, app.Status)
+	return app, nil
 }
-
-func CreateApplication(appDto dtos.CreateApplicationDto) Application {
-	return Application{}
-}
-
-type ApplicationStatus string // TODO: GPT this statement
-
-const (
-	Declared   ApplicationStatus = "declared"
-	Pending    ApplicationStatus = "pending"
-	Processing ApplicationStatus = "processing"
-	Failed     ApplicationStatus = "failed"
-	Deployed   ApplicationStatus = "deployed"
-)

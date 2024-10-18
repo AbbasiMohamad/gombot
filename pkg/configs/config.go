@@ -26,7 +26,6 @@ type Approvers struct {
 type Application struct {
 	Name          string `yaml:"name"`
 	PersianName   string `yaml:"persianName"`
-	GitlabUrl     string `yaml:"gitlab_url"`
 	Branch        string `yaml:"branch"`
 	NeedToApprove bool   `yaml:"needToApprove"`
 }
